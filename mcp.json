@@ -1,0 +1,23 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "quick-image": {
+      "type": "streamable-http",
+      "url": "https://quickimage.ai/mcp",
+      "headers": {
+        "X-Quick-Image-Plugin-Version": "0.1.0",
+        "X-Quick-Image-Frontend-URL": "https://quickimage.ai"
+      }
+    },
+    "quick-image-local": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "--yes",
+        "--package",
+        "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.1.0/quick-image-agent-runtime-0.1.0.tgz",
+        "quick-image-local-mcp"
+      ]
+    }
+  }
+}

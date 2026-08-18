@@ -1,0 +1,30 @@
+{
+  "name": "quick-image",
+  "version": "0.1.0",
+  "description": "安全检查和上传对话附件，并使用 Quick Image 生成图片或视频。",
+  "author": { "name": "Minded One, LLC", "url": "https://quickimage.ai" },
+  "homepage": "https://quickimage.ai",
+  "repository": "https://github.com/beansmile/quick-image-agent-plugin",
+  "license": "LicenseRef-Quick-Image",
+  "keywords": ["image-generation", "video-generation", "mcp"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Quick Image",
+    "shortDescription": "从对话附件安全生成图片和视频",
+    "longDescription": "本地检查附件并预估报价，确认后才处理和上传当前对话中的图片、视频或音频附件，并创建 Quick Image 搭配出图、换姿、高清和视频任务。",
+    "developerName": "Minded One, LLC",
+    "category": "Creativity",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "websiteURL": "https://quickimage.ai",
+    "privacyPolicyURL": "https://quickimage.ai/privacy",
+    "termsOfServiceURL": "https://quickimage.ai/terms",
+    "defaultPrompt": [
+      "用我发送的附件生成一组搭配图",
+      "把这张人物照片换一个姿势",
+      "根据这些参考素材生成视频"
+    ],
+    "brandColor": "#16A34A",
+    "screenshots": []
+  }
+}

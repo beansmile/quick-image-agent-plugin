@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "quick-image",
+  "description": "Quick Image 官方 Agent Plugin",
+  "owner": { "name": "Minded One, LLC" },
+  "plugins": [
+    {
+      "name": "quick-image",
+      "description": "为 Codex 和 OpenClaw 安全检查、上传对话附件并使用 Quick Image 生成图片或视频。",
+      "author": { "name": "Minded One, LLC" },
+      "source": "./",
+      "category": "design",
+      "homepage": "https://quickimage.ai"
+    }
+  ]
+}

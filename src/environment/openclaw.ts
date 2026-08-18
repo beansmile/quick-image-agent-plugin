@@ -1,0 +1,83 @@
+import type { CommandExecutor } from "./command-executor.js";
+import { systemCommandExecutor } from "./command-executor.js";
+import {
+  buildOpenClawMcpConfig,
+  QUICK_IMAGE_FRONTEND_HEADER,
+  QUICK_IMAGE_MCP_NAME,
+  QUICK_IMAGE_PRODUCTION_FRONTEND_URL,
+  QUICK_IMAGE_PRODUCTION_SERVER_URL,
+  type EnvironmentUrls
+} from "./config.js";
+import type { EnvironmentStatus } from "./codex.js";
+import { resolveOpenClawExecutable } from "./executables.js";
+
+interface OpenClawOptions {
+  pluginVersion: string;
+  openClawBin?: string;
+  executor?: CommandExecutor;
+}
+
+export async function setOpenClawEnvironment(
+  urls: EnvironmentUrls,
+  options: OpenClawOptions
+): Promise<EnvironmentStatus> {
+  const runtime = openClawRuntime(options);
+  const config = buildOpenClawMcpConfig(urls, options.pluginVersion);
+  runtime.executor.run(runtime.openClawBin, ["mcp", "set", QUICK_IMAGE_MCP_NAME, JSON.stringify(config)]);
+  runtime.executor.run(runtime.openClawBin, ["mcp", "reload"]);
+  runtime.executor.run(runtime.openClawBin, ["gateway", "restart"]);
+  return readOpenClawEnvironmentStatus(options);
+}
+
+export async function resetOpenClawEnvironment(options: OpenClawOptions): Promise<EnvironmentStatus> {
+  return setOpenClawEnvironment({
+    serverUrl: QUICK_IMAGE_PRODUCTION_SERVER_URL,
+    frontendUrl: QUICK_IMAGE_PRODUCTION_FRONTEND_URL
+  }, options);
+}
+
+export async function readOpenClawEnvironmentStatus(options: OpenClawOptions): Promise<EnvironmentStatus> {
+  const runtime = openClawRuntime(options);
+  let output: string;
+  try {
+    output = runtime.executor.run(
+      runtime.openClawBin,
+      ["config", "get", `mcp.servers.${QUICK_IMAGE_MCP_NAME}`, "--json"]
+    ).stdout;
+  } catch {
+    return { host: "openclaw", configured: false, source: "missing" };
+  }
+  const raw: unknown = JSON.parse(output);
+  const urls = parseOpenClawConfig(raw);
+  const usesProduction = urls.serverUrl === QUICK_IMAGE_PRODUCTION_SERVER_URL &&
+    urls.frontendUrl === QUICK_IMAGE_PRODUCTION_FRONTEND_URL;
+  return {
+    host: "openclaw",
+    configured: true,
+    source: usesProduction ? "production-default" : "custom",
+    ...urls,
+    authenticationCommand: "openclaw mcp login quick-image"
+  };
+}
+
+function openClawRuntime(options: OpenClawOptions) {
+  return {
+    openClawBin: resolveOpenClawExecutable(options.openClawBin),
+    executor: options.executor ?? systemCommandExecutor
+  };
+}
+
+function parseOpenClawConfig(value: unknown): EnvironmentUrls {
+  if (!isObject(value)) throw new Error("OpenClaw MCP 状态输出无效");
+  const headers = isObject(value.headers) ? value.headers : {};
+  const serverUrl = value.url;
+  const frontendUrl = headers[QUICK_IMAGE_FRONTEND_HEADER];
+  if (typeof serverUrl !== "string" || typeof frontendUrl !== "string") {
+    throw new Error("OpenClaw Quick Image MCP 缺少 Server URL 或 Frontend URL");
+  }
+  return { serverUrl, frontendUrl };
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}

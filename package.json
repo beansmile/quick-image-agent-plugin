@@ -1,0 +1,71 @@
+{
+  "name": "quick-image-agent-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Quick Image Agent Plugin for supported AI agent hosts",
+  "type": "module",
+  "license": "LicenseRef-Quick-Image",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.19.0",
+  "bin": {
+    "quick-image": "./dist/cli/quick-image.js",
+    "quick-image-doctor": "./dist/cli/doctor.js"
+  },
+  "files": [
+    ".codex-plugin/",
+    ".claude-plugin/",
+    "skills/",
+    "dist/",
+    "openclaw-adapter/",
+    "openclaw.plugin.json",
+    "plugin.json",
+    "mcp.json",
+    ".mcp.json",
+    "README.md",
+    "DEVELOPMENT.md",
+    "CONTRIBUTING.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "clean": "rimraf dist coverage",
+    "check": "pnpm typecheck && pnpm test && pnpm build && pnpm validate",
+    "quick-image": "tsx src/cli/quick-image.ts",
+    "dev:install:codex": "pnpm build && node scripts/install-local-codex.mjs",
+    "dev:install:openclaw": "pnpm build && openclaw plugins install --link . && openclaw plugins enable quick-image && openclaw quick-image env set --server-url http://127.0.0.1:3000/mcp --frontend-url http://127.0.0.1:8001",
+    "doctor": "tsx src/cli/doctor.ts",
+    "pack:check": "npm pack --dry-run",
+    "runtime:set": "node scripts/set-runtime-version.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "validate": "node scripts/validate-package.mjs"
+  },
+  "dependencies": {
+    "json5": "2.2.3",
+    "quick-image-agent-runtime": "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.1.0/quick-image-agent-runtime-0.1.0.tgz",
+    "zod": "3.25.76"
+  },
+  "openclaw": {
+    "extensions": [
+      "./openclaw-adapter/dist/index.js"
+    ],
+    "compat": {
+      "pluginApi": ">=2026.6.34",
+      "minGatewayVersion": ">=2026.6.34"
+    },
+    "build": {
+      "openclawVersion": "2026.6.34",
+      "pluginSdkVersion": "2026.6.34"
+    }
+  },
+  "devDependencies": {
+    "@types/node": "24.3.0",
+    "rimraf": "6.0.1",
+    "tsup": "8.5.0",
+    "tsx": "4.20.5",
+    "typescript": "5.9.2",
+    "vitest": "3.2.4"
+  }
+}
