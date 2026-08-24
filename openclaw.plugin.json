@@ -1,0 +1,28 @@
+{
+  "id": "quick-image",
+  "name": "Quick Image",
+  "description": "安全处理当前会话附件，并使用 Quick Image 生成图片或视频。",
+  "version": "0.1.0",
+  "activation": {
+    "onStartup": true
+  },
+  "skills": ["./skills"],
+  "contracts": {
+    "tools": [
+      "quick_image_list_attachments",
+      "quick_image_inspect_attachment",
+      "quick_image_prepare_attachment",
+      "quick_image_estimate_lookbook_credits",
+      "quick_image_estimate_pose_credits",
+      "quick_image_estimate_upscale_credits",
+      "quick_image_estimate_video_credits",
+      "quick_image_upload_staged_attachment",
+      "quick_image_send_preview"
+    ]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
