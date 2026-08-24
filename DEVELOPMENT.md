@@ -39,7 +39,7 @@ pnpm check
 
 ```bash
 pnpm quick-image -- env set \
-  --host codex \
+  --host all \
   --server-url https://<server>/mcp \
   --frontend-url https://<frontend>
 ```
@@ -50,7 +50,7 @@ pnpm quick-image -- env set \
 npx --yes \
   --package git+https://github.com/beansmile/quick-image-agent-plugin.git#<ref> \
   quick-image env set \
-  --host codex \
+  --host all \
   --server-url https://<server>/mcp \
   --frontend-url https://<frontend>
 ```
@@ -74,7 +74,16 @@ Codex 使用 `.codex-plugin/plugin.json`，安装后由宿主管理 Quick Image 
 pnpm dev:install:codex
 ```
 
-该命令会完成以下操作：
+如果插件已经安装，需要将所有受支持宿主统一切换到本地 Server 和 Frontend，可执行：
+
+```bash
+pnpm quick-image -- env set \
+  --host all \
+  --server-url http://127.0.0.1:3000/mcp \
+  --frontend-url http://127.0.0.1:8001
+```
+
+`pnpm dev:install:codex` 会完成以下操作：
 
 1. 构建源码。
 2. 生成隔离的 `quick-image-local` Marketplace。
@@ -102,7 +111,7 @@ openclaw config set tools.alsoAllow '["quick-image"]' --strict-json
 pnpm dev:install:openclaw
 ```
 
-本地安装命令会构建源码，执行 `openclaw plugins install --link .` 并启用插件，然后通过插件自己的 `env set` 切换到本地 Server 和 Frontend。`env set` 内部负责 `mcp set`、`mcp reload` 和 `gateway restart`。安装命令不会修改 `tools.allow`、`tools.alsoAllow` 或 `tools.deny`。
+本地安装命令会构建源码，执行 `openclaw plugins install --link .` 并启用插件，然后通过插件自己的 `env set` 切换到本地 Server 和 Frontend。`env set` 内部负责 `mcp set` 和 `gateway restart`。安装命令不会修改 `tools.allow`、`tools.alsoAllow` 或 `tools.deny`。
 
 安装后可使用插件注册的 OpenClaw 原生命令管理 URL：
 
@@ -114,20 +123,21 @@ openclaw quick-image env status
 openclaw quick-image env reset
 ```
 
-正式环境安装使用 `openclaw quick-image setup`。该命令合并 `tools.alsoAllow`、幂等登记正式环境 MCP、可选启动 OAuth，并在基础配置成功后统一执行 `mcp reload` 和 `gateway restart`。它不会静默覆盖自定义 MCP 地址；非交互环境会保留自定义地址并跳过登录。
+正式环境安装使用 `openclaw quick-image setup`。该命令合并 `tools.alsoAllow`、幂等登记正式环境 MCP，并在基础配置成功后执行 `gateway restart` 以加载配置。它不会询问或执行 OAuth 登录，而是在完成后提示用户手动运行登录命令；也不会静默覆盖自定义 MCP 地址，非交互环境会保留自定义地址。
 
 安装命令不会自动启动 OAuth。需要授权时手动执行：
 
 ```bash
 openclaw mcp login quick-image
 openclaw mcp login quick-image --code '<code>'
+openclaw gateway restart
 ```
 
-第一条命令会打印授权链接。浏览器批准后，授权完成页会显示一次性授权码和已经填好授权码的完整命令。授权后的下一轮对话会加载报价和生成工具。
+第一条命令会打印授权链接。浏览器批准后，授权完成页会显示一次性授权码和已经填好授权码的完整命令。执行带授权码的登录命令后重启 Gateway，下一轮对话会加载报价和生成工具；`openclaw mcp probe quick-image` 仅用于连接故障排查。
 
 ## OpenClaw 适配契约
 
-OpenClaw 原生 manifest 不负责导入 MCP 配置。正式安装流程必须登记唯一的远程 MCP，完成登录后重新加载 MCP 并重启 Gateway。
+OpenClaw 原生 manifest 不负责导入 MCP 配置。正式安装流程必须登记唯一的远程 MCP，完成登录后重启 Gateway 以加载配置和凭据。
 
 Doctor 是可选的安装验证与故障排查工具，不是插件启用前置条件。Quick Image 不注册会话内容 Hook 或 owner 专属 Trusted Tool Policy，也不额外限制私聊或群聊。共享 Skill 要求 Agent 根据当前会话上下文仅执行 owner 发出的 Quick Image 指令，但这属于模型行为约束，不构成原生运行时安全边界。实际访问范围仍由 OpenClaw 自身的渠道访问策略和工具策略决定；Doctor 只检查 Quick Image 原生工具是否被当前工具策略开放。
 

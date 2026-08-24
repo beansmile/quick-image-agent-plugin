@@ -12,6 +12,37 @@ afterEach(async () => {
 });
 
 describe("Codex plugin contract", () => {
+  it("exposes the bundled skill as quick-image", async () => {
+    const skill = await readFile(path.resolve("skills/quick-image/SKILL.md"), "utf8");
+    const agentConfig = await readFile(path.resolve("skills/quick-image/agents/openai.yaml"), "utf8");
+
+    expect(skill).toMatch(/^---\nname: quick-image\n/);
+    expect(agentConfig).toContain('display_name: "Quick Image"');
+    expect(agentConfig).toContain('default_prompt: "使用 $quick-image 根据我的附件生成图片或视频。"');
+  });
+
+  it("installs the repository-root plugin from the GitHub marketplace source", async () => {
+    const readme = await readFile(path.resolve("README.md"), "utf8");
+    const marketplace = await readJson(path.resolve(".agents/plugins/marketplace.json"));
+    const installSection = readme.slice(readme.indexOf("### Codex"), readme.indexOf("### OpenClaw"));
+
+    expect(installSection).toContain("Quick Image 暂未上架 Codex 官方 Plugin Marketplace");
+    expect(installSection).toContain(
+      "codex plugin marketplace add https://github.com/beansmile/quick-image-agent-plugin"
+    );
+    expect(installSection).toContain("codex plugin add quick-image@quick-image");
+    expect(installSection).not.toContain("在 Codex 的 Plugin Marketplace 中找到");
+    expect(marketplace).toMatchObject({
+      name: "quick-image",
+      plugins: [{
+        name: "quick-image",
+        source: { source: "local", path: "./" },
+        policy: { installation: "AVAILABLE", authentication: "ON_USE" },
+        category: "Creativity"
+      }]
+    });
+  });
+
   it("loads bundled MCP servers through the companion config", async () => {
     const manifest = await readJson(path.resolve(".codex-plugin/plugin.json"));
     const mcpConfig = await readJson(path.resolve(".mcp.json"));
@@ -37,7 +68,7 @@ describe("Codex plugin contract", () => {
   });
 
   it("inspects an explicitly provided attachment without caching its bytes", async () => {
-    const skill = await readFile(path.resolve("skills/quick-image-generate/SKILL.md"), "utf8");
+    const skill = await readFile(path.resolve("skills/quick-image/SKILL.md"), "utf8");
     const packageJson = await readJson(path.resolve("package.json"));
 
     expect(skill).toContain("工具发现");
@@ -52,7 +83,7 @@ describe("Codex plugin contract", () => {
   });
 
   it("previews generated images with display_url and preserves the original download URL", async () => {
-    const skill = await readFile(path.resolve("skills/quick-image-generate/SKILL.md"), "utf8");
+    const skill = await readFile(path.resolve("skills/quick-image/SKILL.md"), "utf8");
 
     expect(skill).toContain("Codex 使用 `display_url`");
     expect(skill).toContain("通过 Markdown 图片语法嵌入预览");
@@ -62,8 +93,8 @@ describe("Codex plugin contract", () => {
   });
 
   it("shows only the public AI model display name in user-facing messages", async () => {
-    const skill = await readFile(path.resolve("skills/quick-image-generate/SKILL.md"), "utf8");
-    const tools = await readFile(path.resolve("skills/quick-image-generate/references/tools.md"), "utf8");
+    const skill = await readFile(path.resolve("skills/quick-image/SKILL.md"), "utf8");
+    const tools = await readFile(path.resolve("skills/quick-image/references/tools.md"), "utf8");
 
     expect(skill).toContain("用户可见内容只展示 `model.display_name`");
     expect(skill).toContain("不要展示 `model.id` 或 `model.version`");
@@ -72,7 +103,7 @@ describe("Codex plugin contract", () => {
   });
 
   it("keeps quote confirmations concise and invites parameter changes", async () => {
-    const skill = await readFile(path.resolve("skills/quick-image-generate/SKILL.md"), "utf8");
+    const skill = await readFile(path.resolve("skills/quick-image/SKILL.md"), "utf8");
 
     expect(skill).toContain("`person_count` 仅用于本地计价");
     expect(skill).toContain("不要以“识别人物”");
@@ -80,7 +111,7 @@ describe("Codex plugin contract", () => {
   });
 
   it("sends explicit task creation and result timeout notifications", async () => {
-    const skill = await readFile(path.resolve("skills/quick-image-generate/SKILL.md"), "utf8");
+    const skill = await readFile(path.resolve("skills/quick-image/SKILL.md"), "utf8");
 
     expect(skill).toContain("第一次调用 `get_generation_tasks` 前");
     expect(skill).toContain("任务创建成功");
@@ -93,8 +124,8 @@ describe("Codex plugin contract", () => {
   });
 
   it("uses one bounded batch tool for task status and results", async () => {
-    const skill = await readFile(path.resolve("skills/quick-image-generate/SKILL.md"), "utf8");
-    const tools = await readFile(path.resolve("skills/quick-image-generate/references/tools.md"), "utf8");
+    const skill = await readFile(path.resolve("skills/quick-image/SKILL.md"), "utf8");
+    const tools = await readFile(path.resolve("skills/quick-image/references/tools.md"), "utf8");
 
     expect(skill).toContain("`get_generation_tasks`");
     expect(skill).toContain("单次至少 1 个、最多 20 个");
@@ -107,8 +138,8 @@ describe("Codex plugin contract", () => {
   });
 
   it("uses generation config as the only preset source", async () => {
-    const skill = await readFile(path.resolve("skills/quick-image-generate/SKILL.md"), "utf8");
-    const parameters = await readFile(path.resolve("skills/quick-image-generate/references/parameters.md"), "utf8");
+    const skill = await readFile(path.resolve("skills/quick-image/SKILL.md"), "utf8");
+    const parameters = await readFile(path.resolve("skills/quick-image/references/parameters.md"), "utf8");
 
     expect(skill).not.toContain("list_generation_presets");
     expect(parameters).not.toContain("list_generation_presets");
@@ -117,8 +148,8 @@ describe("Codex plugin contract", () => {
   });
 
   it("numbers preset names and accepts index, name, or a custom effect", async () => {
-    const skill = await readFile(path.resolve("skills/quick-image-generate/SKILL.md"), "utf8");
-    const parameters = await readFile(path.resolve("skills/quick-image-generate/references/parameters.md"), "utf8");
+    const skill = await readFile(path.resolve("skills/quick-image/SKILL.md"), "utf8");
+    const parameters = await readFile(path.resolve("skills/quick-image/references/parameters.md"), "utf8");
 
     expect(skill).toContain("格式为 `1. <模板名称>`");
     expect(skill).toContain("回复序号或模板名称选择，也可以直接描述自定义效果");
@@ -129,8 +160,8 @@ describe("Codex plugin contract", () => {
   });
 
   it("documents deterministic video mode selection and attachment roles", async () => {
-    const skill = await readFile(path.resolve("skills/quick-image-generate/SKILL.md"), "utf8");
-    const parameters = await readFile(path.resolve("skills/quick-image-generate/references/parameters.md"), "utf8");
+    const skill = await readFile(path.resolve("skills/quick-image/SKILL.md"), "utf8");
+    const parameters = await readFile(path.resolve("skills/quick-image/references/parameters.md"), "utf8");
 
     expect(skill).toContain("先按 [parameters.md](references/parameters.md) 的模式决策规则");
     expect(parameters).toContain("全能参考 `omni_reference`");
@@ -142,8 +173,8 @@ describe("Codex plugin contract", () => {
   });
 
   it("uses capability-specific local estimators instead of model arithmetic", async () => {
-    const skill = await readFile(path.resolve("skills/quick-image-generate/SKILL.md"), "utf8");
-    const tools = await readFile(path.resolve("skills/quick-image-generate/references/tools.md"), "utf8");
+    const skill = await readFile(path.resolve("skills/quick-image/SKILL.md"), "utf8");
+    const tools = await readFile(path.resolve("skills/quick-image/references/tools.md"), "utf8");
     const estimateTools = [
       ["estimate_lookbook_credits", "quick_image_estimate_lookbook_credits"],
       ["estimate_pose_credits", "quick_image_estimate_pose_credits"],
@@ -163,8 +194,8 @@ describe("Codex plugin contract", () => {
   });
 
   it("delegates preset price selection to the deterministic estimator", async () => {
-    const skill = await readFile(path.resolve("skills/quick-image-generate/SKILL.md"), "utf8");
-    const tools = await readFile(path.resolve("skills/quick-image-generate/references/tools.md"), "utf8");
+    const skill = await readFile(path.resolve("skills/quick-image/SKILL.md"), "utf8");
+    const tools = await readFile(path.resolve("skills/quick-image/references/tools.md"), "utf8");
 
     expect(skill).toContain("所选预设完整对象");
     expect(skill).toContain("`preset_price_behavior`");
@@ -173,8 +204,8 @@ describe("Codex plugin contract", () => {
   });
 
   it("uses capability-specific submission tools without cross-capability count fields", async () => {
-    const skill = await readFile(path.resolve("skills/quick-image-generate/SKILL.md"), "utf8");
-    const tools = await readFile(path.resolve("skills/quick-image-generate/references/tools.md"), "utf8");
+    const skill = await readFile(path.resolve("skills/quick-image/SKILL.md"), "utf8");
+    const tools = await readFile(path.resolve("skills/quick-image/references/tools.md"), "utf8");
     const submitTools = [
       "submit_lookbook_task",
       "submit_pose_task",
@@ -194,7 +225,7 @@ describe("Codex plugin contract", () => {
   });
 
   it("instructs the agent to limit OpenClaw execution to owner requests without claiming runtime enforcement", async () => {
-    const skill = await readFile(path.resolve("skills/quick-image-generate/SKILL.md"), "utf8");
+    const skill = await readFile(path.resolve("skills/quick-image/SKILL.md"), "utf8");
 
     expect(skill).toContain("仅执行 owner 发出的 Quick Image 指令");
     expect(skill).toContain("根据宿主提供的当前会话上下文自行判断");
@@ -231,7 +262,7 @@ describe("Codex plugin contract", () => {
       args: ["--yes", "--package", "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.1.0/quick-image-agent-runtime-0.1.0.tgz", "quick-image-local-mcp"],
       tools: { inspect_attachment: { approval_mode: "prompt" } }
     });
-    await expect(readFile(path.join(pluginRoot, "skills", "quick-image-generate", "SKILL.md"), "utf8"))
+    await expect(readFile(path.join(pluginRoot, "skills", "quick-image", "SKILL.md"), "utf8"))
       .resolves.toContain("fixture skill");
   });
 });
@@ -240,7 +271,7 @@ async function createPluginFixture() {
   const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-codex-overlay-"));
   temporaryDirectories.push(root);
   await mkdir(path.join(root, ".codex-plugin"), { recursive: true });
-  await mkdir(path.join(root, "skills", "quick-image-generate"), { recursive: true });
+  await mkdir(path.join(root, "skills", "quick-image"), { recursive: true });
   await writeFile(path.join(root, ".codex-plugin", "plugin.json"), JSON.stringify({
     name: "quick-image",
     version: "0.1.0",
@@ -268,7 +299,7 @@ async function createPluginFixture() {
       }
     }
   }));
-  await writeFile(path.join(root, "skills", "quick-image-generate", "SKILL.md"), "fixture skill\n");
+  await writeFile(path.join(root, "skills", "quick-image", "SKILL.md"), "fixture skill\n");
   return root;
 }
 

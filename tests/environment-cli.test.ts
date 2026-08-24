@@ -148,7 +148,6 @@ describe("OpenClaw environment adapter", () => {
 
     expect(calls.map((args) => args.slice(0, 2))).toEqual([
       ["mcp", "set"],
-      ["mcp", "reload"],
       ["gateway", "restart"],
       ["config", "get"]
     ]);

@@ -452,15 +452,6 @@ var systemCommandExecutor = {
     return { stdout: result.stdout, stderr: result.stderr };
   }
 };
-var systemInteractiveCommandExecutor = {
-  run(executable, args) {
-    const result = spawnSync(executable, args, { stdio: "inherit" });
-    if (result.error) throw new Error(`\u65E0\u6CD5\u8FD0\u884C ${executable}\uFF1A${result.error.message}`);
-    if (result.status !== 0) {
-      throw new Error(`${executable} ${args.join(" ")} \u6267\u884C\u5931\u8D25`);
-    }
-  }
-};
 
 // src/environment/config.ts
 var QUICK_IMAGE_MCP_NAME = "quick-image";
@@ -871,7 +862,6 @@ var MANUAL_LOGIN_COMMAND = "openclaw mcp login quick-image";
 async function setupOpenClaw(options) {
   const openClawBin = resolveOpenClawExecutable(options.openClawBin);
   const executor = options.executor ?? systemCommandExecutor;
-  const interactiveExecutor = options.interactiveExecutor ?? systemInteractiveCommandExecutor;
   const prompt = options.prompt ?? terminalConfirmationPrompt();
   const toolAccessChanged = ensureToolAccess(openClawBin, executor);
   const mcpAction = await configureProductionMcp({
@@ -880,37 +870,22 @@ async function setupOpenClaw(options) {
     prompt,
     pluginVersion: options.pluginVersion
   });
-  let loginAction = "skipped";
-  let loginError;
-  if (prompt.interactive && await prompt.confirm("\u662F\u5426\u73B0\u5728\u767B\u5F55 Quick Image MCP\uFF1F", true)) {
-    try {
-      interactiveExecutor.run(openClawBin, ["mcp", "login", QUICK_IMAGE_MCP_NAME]);
-      loginAction = "started";
-    } catch (error) {
-      loginAction = "failed";
-      loginError = errorMessage(error);
-    }
-  }
-  executor.run(openClawBin, ["mcp", "reload"]);
   executor.run(openClawBin, ["gateway", "restart"]);
   return {
     toolAccessChanged,
-    mcpAction,
-    loginAction,
-    ...loginError ? { loginError } : {}
+    mcpAction
   };
 }
 function formatOpenClawSetupResult(result) {
   const toolAccess = result.toolAccessChanged ? "\u5DF2\u5C06 quick-image \u52A0\u5165 tools.alsoAllow\uFF0C\u5E76\u4FDD\u7559\u539F\u6709\u6761\u76EE\u3002" : "tools.alsoAllow \u5DF2\u5305\u542B quick-image\u3002";
   const mcp = result.mcpAction === "created" ? "\u5DF2\u767B\u8BB0 Quick Image \u6B63\u5F0F\u73AF\u5883 MCP\u3002" : result.mcpAction === "updated" ? "\u5DF2\u66F4\u65B0 Quick Image \u6B63\u5F0F\u73AF\u5883 MCP\u3002" : "\u5DF2\u4FDD\u7559\u73B0\u6709\u7684 Quick Image \u81EA\u5B9A\u4E49 MCP \u914D\u7F6E\u3002";
-  const login = result.loginAction === "started" ? "\u5DF2\u542F\u52A8 MCP \u767B\u5F55\uFF1B\u8BF7\u6309\u7EC8\u7AEF\u4E2D\u7684\u6388\u6743\u63D0\u793A\u5B8C\u6210\u64CD\u4F5C\u3002" : result.loginAction === "failed" ? `MCP \u767B\u5F55\u672A\u5B8C\u6210\uFF1A${result.loginError ?? "\u672A\u77E5\u9519\u8BEF"}
-\u7A0D\u540E\u53EF\u8FD0\u884C\uFF1A${MANUAL_LOGIN_COMMAND}` : `\u672A\u542F\u52A8 MCP \u767B\u5F55\u3002\u7A0D\u540E\u53EF\u8FD0\u884C\uFF1A${MANUAL_LOGIN_COMMAND}`;
   return [
     "Quick Image OpenClaw \u914D\u7F6E\u5B8C\u6210\u3002",
     toolAccess,
     mcp,
-    login,
-    "\u5DF2\u91CD\u65B0\u52A0\u8F7D MCP \u5E76\u91CD\u542F Gateway\u3002"
+    "\u5DF2\u91CD\u542F Gateway \u5E76\u52A0\u8F7D MCP \u914D\u7F6E\u3002",
+    "\u8BF7\u8FD0\u884C\u4EE5\u4E0B\u547D\u4EE4\u767B\u5F55 Quick Image MCP\uFF1A",
+    MANUAL_LOGIN_COMMAND
   ].join("\n") + "\n";
 }
 function ensureToolAccess(openClawBin, executor) {
@@ -1006,7 +981,7 @@ function isObject3(value) {
 function registerOpenClawEnvironmentCli(api) {
   api.registerCli(({ program }) => {
     const root = program.command("quick-image").description("\u7BA1\u7406 Quick Image \u63D2\u4EF6\u914D\u7F6E");
-    root.command("setup").description("\u914D\u7F6E\u5DE5\u5177\u6743\u9650\u3001\u6B63\u5F0F\u73AF\u5883 MCP \u548C\u53EF\u9009\u767B\u5F55").action(() => runOpenClawSetup(api));
+    root.command("setup").description("\u914D\u7F6E\u5DE5\u5177\u6743\u9650\u548C\u6B63\u5F0F\u73AF\u5883 MCP").action(() => runOpenClawSetup(api));
     const environment = root.command("env").description("\u7BA1\u7406 Quick Image Server \u548C Frontend URL");
     environment.command("set").description("\u8BBE\u7F6E Quick Image Server \u548C Frontend URL").requiredOption("--server-url <url>", "Quick Image MCP URL").requiredOption("--frontend-url <url>", "Quick Image \u524D\u7AEF origin").action((options) => runOpenClawAction(api, "set", options));
     environment.command("status").description("\u663E\u793A\u5F53\u524D\u751F\u6548\u7684 Quick Image URL").action((options) => runOpenClawAction(api, "status", options));

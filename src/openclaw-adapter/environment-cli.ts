@@ -29,7 +29,7 @@ export function registerOpenClawEnvironmentCli(api: OpenClawCliApi): void {
   api.registerCli(({ program }) => {
     const root = program.command("quick-image").description("管理 Quick Image 插件配置");
     root.command("setup")
-      .description("配置工具权限、正式环境 MCP 和可选登录")
+      .description("配置工具权限和正式环境 MCP")
       .action(() => runOpenClawSetup(api));
     const environment = root.command("env").description("管理 Quick Image Server 和 Frontend URL");
     environment.command("set")

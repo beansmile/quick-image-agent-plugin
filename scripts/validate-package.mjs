@@ -10,7 +10,8 @@ const packageJson = await readJson("package.json");
 const portableManifest = await readJson("plugin.json");
 const portableMcp = await readJson("mcp.json");
 const codexManifest = await readJson(".codex-plugin/plugin.json");
-const marketplace = await readJson(".claude-plugin/marketplace.json");
+const claudeMarketplace = await readJson(".claude-plugin/marketplace.json");
+const codexMarketplace = await readJson(".agents/plugins/marketplace.json");
 const companionMcp = await readJson(".mcp.json");
 const openClawManifest = await readJson("openclaw.plugin.json");
 if (packageJson.private !== true) {
@@ -47,9 +48,18 @@ if (openClawManifest.contracts?.tools?.join(",") !== [
 if (packageJson.openclaw?.extensions?.join(",") !== "./openclaw-adapter/dist/index.js") {
   errors.push("OpenClaw runtime entry must point to ./openclaw-adapter/dist/index.js");
 }
-if (marketplace.plugins?.length !== 1 || marketplace.plugins[0]?.name !== "quick-image" ||
-    marketplace.plugins[0]?.source !== "./") {
-  errors.push("Marketplace: must expose only the merged quick-image plugin from ./");
+if (claudeMarketplace.plugins?.length !== 1 || claudeMarketplace.plugins[0]?.name !== "quick-image" ||
+    claudeMarketplace.plugins[0]?.source !== "./") {
+  errors.push("Claude Marketplace: must expose only the merged quick-image plugin from ./");
+}
+const codexMarketplaceEntry = codexMarketplace.plugins?.[0];
+if (codexMarketplace.name !== "quick-image" || codexMarketplace.plugins?.length !== 1 ||
+    codexMarketplaceEntry?.name !== "quick-image" || codexMarketplaceEntry?.source?.source !== "local" ||
+    codexMarketplaceEntry?.source?.path !== "./" ||
+    codexMarketplaceEntry?.policy?.installation !== "AVAILABLE" ||
+    codexMarketplaceEntry?.policy?.authentication !== "ON_USE" ||
+    codexMarketplaceEntry?.category !== "Creativity") {
+  errors.push("Codex Marketplace: must expose the repository-root quick-image plugin");
 }
 
 for (const [name, manifest] of [
@@ -111,9 +121,10 @@ if (packageJson.dependencies?.["quick-image-agent-runtime"] !== portableRuntime?
 for (const required of [
   "dist/cli/doctor.js",
   "dist/cli/quick-image.js",
+  ".agents/plugins/marketplace.json",
   "openclaw.plugin.json",
   "openclaw-adapter/dist/index.js",
-  "skills/quick-image-generate/SKILL.md",
+  "skills/quick-image/SKILL.md",
   "DEVELOPMENT.md",
   "LICENSE",
 ]) {
@@ -126,7 +137,7 @@ if (packageJson.bin?.["quick-image-upload-bridge"] || packageJson.bin?.["quick-i
   errors.push("package must not expose the separately versioned local runtime");
 }
 
-const skill = await readFile(path.join(root, "skills/quick-image-generate/SKILL.md"), "utf8");
+const skill = await readFile(path.join(root, "skills/quick-image/SKILL.md"), "utf8");
 if (skill.includes("TODO")) errors.push("skill contains TODO placeholder");
 for (const forbiddenTool of [
   "cancel_task",

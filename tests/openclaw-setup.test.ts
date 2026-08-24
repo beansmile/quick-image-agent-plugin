@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { CommandExecutor, InteractiveCommandExecutor } from "../src/environment/command-executor.js";
+import type { CommandExecutor } from "../src/environment/command-executor.js";
 import {
   formatOpenClawSetupResult,
   setupOpenClaw,
@@ -7,20 +7,18 @@ import {
 } from "../src/environment/openclaw-setup.js";
 
 describe("OpenClaw setup", () => {
-  it("merges tool access, creates production MCP, and supports interactive login", async () => {
+  it("merges tool access, creates production MCP, and prompts for manual login", async () => {
     const calls: string[][] = [];
     const executor = fixtureExecutor(calls, {
       tools: { profile: "coding", alsoAllow: ["existing-tool"] },
       servers: {}
     });
-    const interactiveExecutor: InteractiveCommandExecutor = { run: vi.fn() };
-    const prompt = fixturePrompt(true, [true]);
+    const prompt = fixturePrompt(true, []);
 
     const result = await setupOpenClaw({
       pluginVersion: "0.1.0",
       openClawBin: "/bin/echo",
       executor,
-      interactiveExecutor,
       prompt
     });
 
@@ -32,9 +30,12 @@ describe("OpenClaw setup", () => {
       url: "https://quickimage.ai/mcp",
       headers: { "X-Quick-Image-Plugin-Version": "0.1.0" }
     });
-    expect(interactiveExecutor.run).toHaveBeenCalledWith("/bin/echo", ["mcp", "login", "quick-image"]);
-    expect(calls.slice(-2)).toEqual([["mcp", "reload"], ["gateway", "restart"]]);
-    expect(result).toEqual({ toolAccessChanged: true, mcpAction: "created", loginAction: "started" });
+    expect(calls).not.toContainEqual(["mcp", "login", "quick-image"]);
+    expect(calls).not.toContainEqual(["mcp", "reload"]);
+    expect(prompt.confirm).not.toHaveBeenCalled();
+    expect(calls.at(-1)).toEqual(["gateway", "restart"]);
+    expect(result).toEqual({ toolAccessChanged: true, mcpAction: "created" });
+    expect(formatOpenClawSetupResult(result)).toContain("请运行以下命令登录 Quick Image MCP：\nopenclaw mcp login quick-image");
   });
 
   it("is idempotent and updates the managed production config without prompting for replacement", async () => {
@@ -43,19 +44,18 @@ describe("OpenClaw setup", () => {
       tools: { alsoAllow: ["quick-image"] },
       servers: { "quick-image": { url: "https://quickimage.ai/mcp" } }
     });
-    const prompt = fixturePrompt(true, [false]);
+    const prompt = fixturePrompt(true, []);
 
     const result = await setupOpenClaw({
       pluginVersion: "0.2.0",
       openClawBin: "/bin/echo",
       executor,
-      interactiveExecutor: { run: vi.fn() },
       prompt
     });
 
     expect(calls.some((args) => args[0] === "config" && args[1] === "set")).toBe(false);
-    expect(prompt.confirm).toHaveBeenCalledTimes(1);
-    expect(result).toEqual({ toolAccessChanged: false, mcpAction: "updated", loginAction: "skipped" });
+    expect(prompt.confirm).not.toHaveBeenCalled();
+    expect(result).toEqual({ toolAccessChanged: false, mcpAction: "updated" });
   });
 
   it("does not overwrite a custom MCP in a non-interactive environment", async () => {
@@ -70,13 +70,12 @@ describe("OpenClaw setup", () => {
       pluginVersion: "0.1.0",
       openClawBin: "/bin/echo",
       executor,
-      interactiveExecutor: { run: vi.fn() },
       prompt
     });
 
     expect(calls.some((args) => args[0] === "mcp" && args[1] === "set")).toBe(false);
     expect(prompt.confirm).not.toHaveBeenCalled();
-    expect(result).toEqual({ toolAccessChanged: true, mcpAction: "kept-custom", loginAction: "skipped" });
+    expect(result).toEqual({ toolAccessChanged: true, mcpAction: "kept-custom" });
   });
 
   it("replaces a custom MCP only after explicit confirmation", async () => {
@@ -85,43 +84,22 @@ describe("OpenClaw setup", () => {
       tools: { alsoAllow: ["quick-image"] },
       servers: { "quick-image": { url: "https://custom.example.com/mcp" } }
     });
-    const prompt = fixturePrompt(true, [true, false]);
+    const prompt = fixturePrompt(true, [true]);
 
     const result = await setupOpenClaw({
       pluginVersion: "0.1.0",
       openClawBin: "/bin/echo",
       executor,
-      interactiveExecutor: { run: vi.fn() },
       prompt
     });
 
     const mcpSet = calls.find((args) => args[0] === "mcp" && args[1] === "set");
     expect(JSON.parse(mcpSet?.[3] ?? "null")).toMatchObject({ url: "https://quickimage.ai/mcp" });
-    expect(prompt.confirm).toHaveBeenCalledTimes(2);
-    expect(result).toEqual({ toolAccessChanged: false, mcpAction: "updated", loginAction: "skipped" });
+    expect(prompt.confirm).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ toolAccessChanged: false, mcpAction: "updated" });
   });
 
-  it("still reloads and restarts when optional login fails", async () => {
-    const calls: string[][] = [];
-    const executor = fixtureExecutor(calls, { tools: {}, servers: {} });
-    const interactiveExecutor: InteractiveCommandExecutor = {
-      run: vi.fn(() => { throw new Error("登录取消"); })
-    };
-
-    const result = await setupOpenClaw({
-      pluginVersion: "0.1.0",
-      openClawBin: "/bin/echo",
-      executor,
-      interactiveExecutor,
-      prompt: fixturePrompt(true, [true])
-    });
-
-    expect(calls.slice(-2)).toEqual([["mcp", "reload"], ["gateway", "restart"]]);
-    expect(result).toMatchObject({ loginAction: "failed", loginError: "登录取消" });
-    expect(formatOpenClawSetupResult(result)).toContain("openclaw mcp login quick-image");
-  });
-
-  it("stops before reload when required MCP configuration fails", async () => {
+  it("stops before gateway restart when required MCP configuration fails", async () => {
     const calls: string[][] = [];
     const executor = fixtureExecutor(calls, { tools: {}, servers: {} }, true);
 
@@ -129,7 +107,6 @@ describe("OpenClaw setup", () => {
       pluginVersion: "0.1.0",
       openClawBin: "/bin/echo",
       executor,
-      interactiveExecutor: { run: vi.fn() },
       prompt: fixturePrompt(false, [])
     })).rejects.toThrow("MCP 配置失败");
 

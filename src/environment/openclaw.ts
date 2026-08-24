@@ -24,7 +24,6 @@ export async function setOpenClawEnvironment(
   const runtime = openClawRuntime(options);
   const config = buildOpenClawMcpConfig(urls, options.pluginVersion);
   runtime.executor.run(runtime.openClawBin, ["mcp", "set", QUICK_IMAGE_MCP_NAME, JSON.stringify(config)]);
-  runtime.executor.run(runtime.openClawBin, ["mcp", "reload"]);
   runtime.executor.run(runtime.openClawBin, ["gateway", "restart"]);
   return readOpenClawEnvironmentStatus(options);
 }

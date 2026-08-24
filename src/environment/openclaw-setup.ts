@@ -1,9 +1,6 @@
 import { createInterface } from "node:readline/promises";
-import type { CommandExecutor, InteractiveCommandExecutor } from "./command-executor.js";
-import {
-  systemCommandExecutor,
-  systemInteractiveCommandExecutor
-} from "./command-executor.js";
+import type { CommandExecutor } from "./command-executor.js";
+import { systemCommandExecutor } from "./command-executor.js";
 import {
   buildOpenClawMcpConfig,
   productionEnvironmentUrls,
@@ -21,27 +18,22 @@ export interface ConfirmationPrompt {
 }
 
 export type OpenClawSetupMcpAction = "created" | "updated" | "kept-custom";
-export type OpenClawSetupLoginAction = "started" | "skipped" | "failed";
 
 export interface OpenClawSetupResult {
   toolAccessChanged: boolean;
   mcpAction: OpenClawSetupMcpAction;
-  loginAction: OpenClawSetupLoginAction;
-  loginError?: string;
 }
 
 interface OpenClawSetupOptions {
   pluginVersion: string;
   openClawBin?: string;
   executor?: CommandExecutor;
-  interactiveExecutor?: InteractiveCommandExecutor;
   prompt?: ConfirmationPrompt;
 }
 
 export async function setupOpenClaw(options: OpenClawSetupOptions): Promise<OpenClawSetupResult> {
   const openClawBin = resolveOpenClawExecutable(options.openClawBin);
   const executor = options.executor ?? systemCommandExecutor;
-  const interactiveExecutor = options.interactiveExecutor ?? systemInteractiveCommandExecutor;
   const prompt = options.prompt ?? terminalConfirmationPrompt();
 
   const toolAccessChanged = ensureToolAccess(openClawBin, executor);
@@ -52,27 +44,12 @@ export async function setupOpenClaw(options: OpenClawSetupOptions): Promise<Open
     pluginVersion: options.pluginVersion
   });
 
-  let loginAction: OpenClawSetupLoginAction = "skipped";
-  let loginError: string | undefined;
-  if (prompt.interactive && await prompt.confirm("是否现在登录 Quick Image MCP？", true)) {
-    try {
-      interactiveExecutor.run(openClawBin, ["mcp", "login", QUICK_IMAGE_MCP_NAME]);
-      loginAction = "started";
-    } catch (error) {
-      loginAction = "failed";
-      loginError = errorMessage(error);
-    }
-  }
-
-  // 登录是可选步骤；只要基础配置成功，始终让宿主重新加载配置。
-  executor.run(openClawBin, ["mcp", "reload"]);
+  // 重启 Gateway 会重新读取 MCP 配置；OAuth 登录由用户按提示单独执行。
   executor.run(openClawBin, ["gateway", "restart"]);
 
   return {
     toolAccessChanged,
-    mcpAction,
-    loginAction,
-    ...(loginError ? { loginError } : {})
+    mcpAction
   };
 }
 
@@ -85,18 +62,13 @@ export function formatOpenClawSetupResult(result: OpenClawSetupResult): string {
     : result.mcpAction === "updated"
       ? "已更新 Quick Image 正式环境 MCP。"
       : "已保留现有的 Quick Image 自定义 MCP 配置。";
-  const login = result.loginAction === "started"
-    ? "已启动 MCP 登录；请按终端中的授权提示完成操作。"
-    : result.loginAction === "failed"
-      ? `MCP 登录未完成：${result.loginError ?? "未知错误"}\n稍后可运行：${MANUAL_LOGIN_COMMAND}`
-      : `未启动 MCP 登录。稍后可运行：${MANUAL_LOGIN_COMMAND}`;
-
   return [
     "Quick Image OpenClaw 配置完成。",
     toolAccess,
     mcp,
-    login,
-    "已重新加载 MCP 并重启 Gateway。"
+    "已重启 Gateway 并加载 MCP 配置。",
+    "请运行以下命令登录 Quick Image MCP：",
+    MANUAL_LOGIN_COMMAND
   ].join("\n") + "\n";
 }
 

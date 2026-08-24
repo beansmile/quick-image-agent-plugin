@@ -1,5 +1,5 @@
 ---
-name: quick-image-generate
+name: quick-image
 description: 使用 Quick Image 对当前对话附件执行搭配出图、换姿、高清或视频生成。用户要求基于图片、视频或音频生成内容、查询 Quick Image 任务或查看生成结果时使用；必须先读取公开配置并本地预估报价，确认后再执行安全附件上传、幂等提交和限速轮询流程。
 ---
 
@@ -18,7 +18,7 @@ description: 使用 Quick Image 对当前对话附件执行搭配出图、换姿
 - 宿主明确返回 `401`、`requires OAuth authorization` 或等价的未授权错误时，立即停止业务流程并提供当前宿主的登录指引，不要笼统归因于插件未加载。
 - 在 OpenClaw 中，只要本 Skill 已被调用而任一远程工具不可发现，就不要回答“无法判断是否登录”，也不要把重启 Gateway 或新建会话作为首要建议。应说明“Quick Image 远程 MCP 当前未授权或未连接”，并提示用户在自己的终端执行 `openclaw mcp doctor`：
   - 输出 `OAuth credentials are not authorized` 时，执行 `openclaw mcp login quick-image`，打开命令输出的前台授权链接并批准。授权完成页会显示一次性授权码和已经填好授权码的 `openclaw mcp login quick-image --code '<code>'` 命令；提示用户复制完整命令并在自己的终端执行。
-  - 登录成功后执行 `openclaw mcp reload` 和 `openclaw mcp probe quick-image`。探测列出远程工具后再重试原请求；只有工具目录仍未刷新时才建议新建会话。
+  - 登录成功后执行 `openclaw gateway restart`，并在新一轮对话中重试原请求。若远程工具仍不可用，再执行 `openclaw mcp probe quick-image` 排查连接状态。
   - 如果 Doctor 显示没有名为 `quick-image` 的 MCP server，则说明 OpenClaw 安装未完成，应让用户重新执行插件提供的安装流程，而不是继续 OAuth。
 - 授权 code 和 Token 只应提交给本地 OpenClaw CLI，不要要求用户粘贴到对话中，也不要代替用户运行登录命令或打开授权页面。
 - OpenClaw 中找不到 `quick_image_list_attachments` 时，说明原生适配工具未安装、未启用或被当前工具策略过滤。立即停止附件流程，明确说明工具不可用，并提示用户运行 `quick-image-doctor --host openclaw`；不得声称附件尚未生成、不得要求用户反复重发附件。限制型 `tools.profile` 需要由用户将插件 ID `quick-image` 显式加入 `tools.alsoAllow`，不需要通用 `message` 工具。

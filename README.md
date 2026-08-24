@@ -6,7 +6,7 @@ Quick Image Agent Plugin 让 Codex 和 OpenClaw 可以使用当前对话中的�
 - 创建任务前先展示预估价格，只有在你确认后才处理并上传附件。
 - 生成完成后返回预览和原文件下载链接。
 
-[Quick Image 官网](https://quickimage.ai) · [https://github.com/beansmile/quick-image-agent-plugin.git](https://github.com/beansmile/quick-image-agent-plugin.git)
+[Quick Image 官网](https://quickimage.ai) · [https://github.com/beansmile/quick-image-agent-plugin](https://github.com/beansmile/quick-image-agent-plugin)
 
 本仓库源码公开可查看，但不是开源软件。安装和使用受 [Quick Image Agent Plugin License](LICENSE)、[服务条款](https://quickimage.ai/terms)和[隐私政策](https://quickimage.ai/privacy)约束。
 
@@ -21,9 +21,14 @@ Quick Image Agent Plugin 让 Codex 和 OpenClaw 可以使用当前对话中的�
 
 ### Codex
 
-1. 在 Codex 的 Plugin Marketplace 中找到并安装 **Quick Image**。
-2. 按提示登录 Quick Image 并批准授权。
-3. 新建一个 Codex 任务，让 Skill 和 MCP 工具生效。
+Quick Image 暂未上架 Codex 官方 Plugin Marketplace，请从 GitHub 仓库安装：
+
+```bash
+codex plugin marketplace add https://github.com/beansmile/quick-image-agent-plugin
+codex plugin add quick-image@quick-image
+```
+
+安装后按 Codex 提示登录 Quick Image 并批准授权，然后新建一个 Codex 任务，让 Skill 和 MCP 工具生效。
 
 首次授权会打开 Quick Image 登录和授权页。批准后，浏览器会自动返回 Codex 并完成登录，不需要手工复制授权码。
 
@@ -44,13 +49,11 @@ openclaw plugins enable quick-image
 openclaw quick-image setup
 ```
 
-`setup` 会在保留原有条目的前提下，将 `quick-image` 加入 `tools.alsoAllow`，登记正式环境 MCP，并询问是否现在登录。无论是否登录，基础配置成功后都会重新加载 MCP 并重启 Gateway。重复执行不会重复添加工具权限；检测到自定义 Quick Image MCP 地址时，只有确认后才会替换。
-
-在非交互环境中，`setup` 会跳过登录并保留已有的自定义 MCP 配置。
+`setup` 会在保留原有条目的前提下，将 `quick-image` 加入 `tools.alsoAllow`，登记正式环境 MCP，然后重启 Gateway 以加载配置。重复执行不会重复添加工具权限；检测到自定义 Quick Image MCP 地址时，只有确认后才会替换，非交互环境则保留已有的自定义 MCP 配置。
 
 #### 登录或重新登录 MCP
 
-安装时跳过登录、登录失效或需要切换账号时，执行：
+`setup` 完成后、登录失效或需要切换账号时，执行：
 
 ```bash
 openclaw mcp login quick-image
@@ -60,9 +63,10 @@ openclaw mcp login quick-image
 
 ```bash
 openclaw mcp login quick-image --code '<授权码>'
-openclaw mcp reload
-openclaw mcp probe quick-image
+openclaw gateway restart
 ```
+
+Gateway 重启后会重新加载 MCP 配置和登录凭据。若新对话中仍无法使用 Quick Image，再执行 `openclaw mcp probe quick-image` 排查连接状态。
 
 #### 安装验证与故障排查
 

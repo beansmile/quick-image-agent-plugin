@@ -1,0 +1,4 @@
+interface:
+  display_name: "Quick Image"
+  short_description: "安全上传附件并完成 Quick Image 生成任务"
+  default_prompt: "使用 $quick-image 根据我的附件生成图片或视频。"
