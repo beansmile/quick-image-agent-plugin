@@ -95,6 +95,11 @@ export class OpenClawAttachmentRegistry {
     };
   }
 
+  async cleanupExpired(): Promise<void> {
+    await this.initialize();
+    await this.readActiveRecords();
+  }
+
   async resolve(attachmentId: string): Promise<OpenClawAttachmentRecord> {
     await this.initialize();
     assertAttachmentId(attachmentId);
