@@ -200,6 +200,24 @@ export function createListAttachmentsTool(
   };
 }
 
+export function enqueuePendingRegistration(
+  pendingRegistrations: Map<string, Promise<void>>,
+  sessionKey: string,
+  register: () => Promise<void>
+): Promise<void> {
+  const previous = pendingRegistrations.get(sessionKey);
+  // 同一会话按消息顺序登记；单条失败只影响本条，不阻塞后续消息继续入队。
+  const queued = (previous ?? Promise.resolve())
+    .catch(() => undefined)
+    .then(register);
+  pendingRegistrations.set(sessionKey, queued);
+  const cleanup = () => {
+    if (pendingRegistrations.get(sessionKey) === queued) pendingRegistrations.delete(sessionKey);
+  };
+  void queued.then(cleanup, cleanup);
+  return queued;
+}
+
 function parsePreviewParameters(value: unknown): PreviewParameters {
   if (!isObject(value)) throw new Error("预览参数无效。");
   const displayUrl = parseHttpsUrl(value.display_url, "display_url");
@@ -297,17 +315,12 @@ const plugin = {
       if (!sessionKey || attachments.length === 0) return;
       const runId = event.runId ?? context.runId;
       const messageId = event.messageId ?? context.messageId;
-      const registration = registry.register({
+      const registration = enqueuePendingRegistration(pendingRegistrations, sessionKey, () => registry.register({
         sessionKey,
         ...(runId ? { runId } : {}),
         ...(messageId ? { messageId } : {}),
         attachments
-      });
-      pendingRegistrations.set(sessionKey, registration);
-      const cleanup = () => {
-        if (pendingRegistrations.get(sessionKey) === registration) pendingRegistrations.delete(sessionKey);
-      };
-      void registration.then(cleanup, cleanup);
+      }));
       return registration;
     });
     api.registerTool((context) => createListAttachmentsTool(registry, pendingRegistrations, context), {
@@ -323,8 +336,9 @@ const plugin = {
     api.registerTool((context) => createPreviewTool(api, context), { name: PREVIEW_TOOL_NAME });
 
     const cleanupTimer = setInterval(() => {
-      if (!pipelinePromise) return;
-      void pipelinePromise.then((pipeline) => pipeline.cleanupExpired()).catch(() => {
+      const cleanupTasks = [registry.cleanupExpired()];
+      if (pipelinePromise) cleanupTasks.push(pipelinePromise.then((pipeline) => pipeline.cleanupExpired()));
+      void Promise.all(cleanupTasks).catch(() => {
         process.stderr.write(`${JSON.stringify({ code: "ATTACHMENT_CLEANUP_FAILED" })}\n`);
       });
     }, HANDLE_CLEANUP_INTERVAL_MS);

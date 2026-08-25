@@ -62,6 +62,10 @@ var OpenClawAttachmentRegistry = class {
       has_more: selected.length > limit
     };
   }
+  async cleanupExpired() {
+    await this.initialize();
+    await this.readActiveRecords();
+  }
   async resolve(attachmentId) {
     await this.initialize();
     assertAttachmentId(attachmentId);
@@ -1124,6 +1128,16 @@ function createListAttachmentsTool(registry, pendingRegistrations, context) {
     }
   };
 }
+function enqueuePendingRegistration(pendingRegistrations, sessionKey, register) {
+  const previous = pendingRegistrations.get(sessionKey);
+  const queued = (previous ?? Promise.resolve()).catch(() => void 0).then(register);
+  pendingRegistrations.set(sessionKey, queued);
+  const cleanup = () => {
+    if (pendingRegistrations.get(sessionKey) === queued) pendingRegistrations.delete(sessionKey);
+  };
+  void queued.then(cleanup, cleanup);
+  return queued;
+}
 function parsePreviewParameters(value) {
   if (!isObject4(value)) throw new Error("\u9884\u89C8\u53C2\u6570\u65E0\u6548\u3002");
   const displayUrl = parseHttpsUrl(value.display_url, "display_url");
@@ -1214,17 +1228,12 @@ var plugin = {
       if (!sessionKey || attachments.length === 0) return;
       const runId = event.runId ?? context.runId;
       const messageId = event.messageId ?? context.messageId;
-      const registration = registry.register({
+      const registration = enqueuePendingRegistration(pendingRegistrations, sessionKey, () => registry.register({
         sessionKey,
         ...runId ? { runId } : {},
         ...messageId ? { messageId } : {},
         attachments
-      });
-      pendingRegistrations.set(sessionKey, registration);
-      const cleanup = () => {
-        if (pendingRegistrations.get(sessionKey) === registration) pendingRegistrations.delete(sessionKey);
-      };
-      void registration.then(cleanup, cleanup);
+      }));
       return registration;
     });
     api.registerTool((context) => createListAttachmentsTool(registry, pendingRegistrations, context), {
@@ -1239,8 +1248,9 @@ var plugin = {
     }
     api.registerTool((context) => createPreviewTool(api, context), { name: PREVIEW_TOOL_NAME });
     const cleanupTimer = setInterval(() => {
-      if (!pipelinePromise) return;
-      void pipelinePromise.then((pipeline) => pipeline.cleanupExpired()).catch(() => {
+      const cleanupTasks = [registry.cleanupExpired()];
+      if (pipelinePromise) cleanupTasks.push(pipelinePromise.then((pipeline) => pipeline.cleanupExpired()));
+      void Promise.all(cleanupTasks).catch(() => {
         process.stderr.write(`${JSON.stringify({ code: "ATTACHMENT_CLEANUP_FAILED" })}
 `);
       });
@@ -1252,5 +1262,6 @@ var openclaw_adapter_default = plugin;
 export {
   createListAttachmentsTool,
   createPreviewTool,
-  openclaw_adapter_default as default
+  openclaw_adapter_default as default,
+  enqueuePendingRegistration
 };
