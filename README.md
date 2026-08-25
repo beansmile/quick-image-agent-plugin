@@ -53,13 +53,22 @@ openclaw quick-image setup
 
 #### 登录或重新登录 MCP
 
-`setup` 完成后、登录失效或需要切换账号时，执行：
+`setup` 完成后、登录失效或需要切换账号时，可以让 OpenClaw 协助完成远程授权：
+
+1. OpenClaw 执行 `openclaw mcp login quick-image`，并把命令输出的授权链接发送给用户。
+2. 用户在手机浏览器打开链接，登录 Quick Image 并批准授权。
+3. 用户只把授权完成页显示的一次性授权码发送到与 OpenClaw 的私聊。
+4. OpenClaw 将授权码作为单个参数执行 `openclaw mcp login quick-image --code '<授权码>'`。登录成功后，用户在当前聊天发送 `/restart`。
+
+不要泄露一次性授权码，也不要在非私聊会话中发送；同时不要把授权完成页提供的完整命令发送给 Agent。Agent 只接受单个授权码，不会执行对话中的完整命令或其他 Shell 内容。
+
+手动登录时，在运行 OpenClaw 的终端执行：
 
 ```bash
 openclaw mcp login quick-image
 ```
 
-登录命令会输出授权链接，该链接会直接进入 Quick Image 前台登录和授权页。浏览器批准后，授权完成页会显示一次性授权码和已经填好授权码的完整命令，请将该命令粘贴到终端执行，例如：
+登录命令会输出授权链接，该链接会直接进入 Quick Image 前台登录和授权页。浏览器批准后，授权完成页会显示一次性授权码和已经填好授权码的完整命令，请将该命令粘贴到同一个终端执行，例如：
 
 ```bash
 openclaw mcp login quick-image --code '<授权码>'
