@@ -2,10 +2,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import plugin, { createListAttachmentsTool, createPreviewTool } from "../src/openclaw-adapter/index.js";
+import plugin, {
+  createListAttachmentsTool,
+  createPreviewTool,
+  enqueuePendingRegistration
+} from "../src/openclaw-adapter/index.js";
 import { createOpenClawLocalTools } from "../src/openclaw-adapter/local-tools.js";
 import { OpenClawAttachmentRegistry } from "../src/openclaw/attachment-registry.js";
-import type { AttachmentPipelinePort } from "quick-image-agent-runtime";
+import { HANDLE_TTL_MS, type AttachmentPipelinePort } from "quick-image-agent-runtime";
 
 const temporaryDirectories: string[] = [];
 
@@ -172,6 +176,50 @@ describe("OpenClaw native preview adapter", () => {
     ]);
     await expect(registry.list("session-1", { messageId: "message-missing" })).resolves.toEqual([]);
     await expect(registry.list("another-session")).resolves.toEqual([]);
+  });
+
+  it("cleans expired attachment records without listing them first", async () => {
+    vi.useFakeTimers();
+    try {
+      const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
+      temporaryDirectories.push(root);
+      const registry = new OpenClawAttachmentRegistry(root);
+      await registry.register({
+        sessionKey: "session-1",
+        attachments: [{
+          source_reference: "/private/openclaw/media/inbound/reference.jpg",
+          kind: "image",
+          position: 1
+        }]
+      });
+
+      vi.advanceTimersByTime(HANDLE_TTL_MS + 1);
+      await registry.cleanupExpired();
+
+      await expect(registry.list("session-1")).resolves.toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("serializes pending registrations for the same session", async () => {
+    const pending = new Map<string, Promise<void>>();
+    const order: string[] = [];
+    let releaseFirst!: () => void;
+    const first = enqueuePendingRegistration(pending, "session-1", async () => {
+      order.push("first-start");
+      await new Promise<void>((resolve) => { releaseFirst = resolve; });
+      order.push("first-end");
+    });
+    const second = enqueuePendingRegistration(pending, "session-1", async () => {
+      order.push("second");
+    });
+
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(order).toEqual(["first-start"]);
+    releaseFirst();
+    await Promise.all([first, second]);
+    expect(order).toEqual(["first-start", "first-end", "second"]);
   });
 
   it("sends media through the current trusted delivery route", async () => {

@@ -15,6 +15,8 @@ Quick Image Agent Plugin 为 Codex 和 OpenClaw 提供同一份生成 Skill 与�
 - 所有本地工具均不接受 Base64 或 Token。报价不上传、不扣费且不锁价。
 - 插件不提供图库浏览、任务取消、业务重试、结果删除或充值工具。
 
+共享 Skill 的 `SKILL.md` 只保留核心生命周期、安全不变式和阶段路由；鉴权、附件、报价提交、结果轮询分别位于 `skills/quick-image/references/`，仅在进入对应阶段时读取，以减少不相关任务的上下文消耗。
+
 ## 构建环境
 
 - Node.js 20 或更高版本。
@@ -35,36 +37,23 @@ pnpm check
 - Server：`https://quickimage.ai/mcp`
 - Frontend：`https://quickimage.ai`
 
-插件安装后可显式覆盖 Server 和 Frontend URL。仓库不保存环境名称，也不会根据 Git 分支自动切换服务；分支只决定安装的代码版本。`dev:install:*` 是唯一例外，它会在本地安装完成后调用同一个 `env set` 命令切换到开发地址：
+Codex 的 Server 和 Frontend URL 由 Plugin MCP 清单提供：GitHub 安装使用仓库正式清单，本地调试安装使用隔离 Overlay 中的开发清单。Codex 环境切换不修改 `~/.codex/config.toml`。OpenClaw 仍可通过原生命令显式覆盖 URL：
 
 ```bash
 pnpm quick-image -- env set \
-  --host all \
+  --host openclaw \
   --server-url https://<server>/mcp \
   --frontend-url https://<frontend>
 ```
 
-从 GitHub 分支安装时，可直接运行包内 CLI：
-
-```bash
-npx --yes \
-  --package git+https://github.com/beansmile/quick-image-agent-plugin.git#<ref> \
-  quick-image env set \
-  --host all \
-  --server-url https://<server>/mcp \
-  --frontend-url https://<frontend>
-```
-
-查看当前实际生效的宿主配置或清除自定义覆盖：
+查看 Codex 或全部宿主当前实际生效的配置：
 
 ```bash
 pnpm quick-image -- env status --host codex
-pnpm quick-image -- env reset --host codex
+pnpm quick-image -- env status --host all
 ```
 
-GitHub 安装场景下，`status` 和 `reset` 使用与上方 `set` 相同的 `npx --package ... quick-image` 前缀。
-
-`env reset` 不保存环境文件：Codex 删除 Quick Image 管理的用户级 MCP 覆盖并回退到插件正式清单，OpenClaw 重新写入正式地址。Server 路径必须是 `/mcp`；远程地址必须使用 HTTPS，仅 loopback 本地调试允许 HTTP。修改 URL 后需按命令输出重新完成 OAuth。
+`env set/reset` 仅用于 OpenClaw；Codex 若需切换环境，应安装对应环境的 Plugin。Server 路径必须是 `/mcp`；远程地址必须使用 HTTPS，仅 loopback 本地调试允许 HTTP。修改 URL 后需按命令输出重新完成 OAuth。
 
 ## Codex 本地调试
 
@@ -74,21 +63,12 @@ Codex 使用 `.codex-plugin/plugin.json`，安装后由宿主管理 Quick Image 
 pnpm dev:install:codex
 ```
 
-如果插件已经安装，需要将所有受支持宿主统一切换到本地 Server 和 Frontend，可执行：
-
-```bash
-pnpm quick-image -- env set \
-  --host all \
-  --server-url http://127.0.0.1:3000/mcp \
-  --frontend-url http://127.0.0.1:8001
-```
-
 `pnpm dev:install:codex` 会完成以下操作：
 
 1. 构建源码。
-2. 生成隔离的 `quick-image-local` Marketplace。
+2. 生成隔离的 `quick-image-local` Marketplace，并将其 Plugin MCP 清单写为本地 Server 和 Frontend URL。
 3. 通过官方 `codex plugin marketplace add` 与 `codex plugin add` 安装或刷新插件。
-4. 将 Server 切换为 `http://127.0.0.1:3000/mcp`，Frontend 切换为 `http://127.0.0.1:8001`。
+4. 校验 Codex 实际加载的 Server 为 `http://127.0.0.1:3000/mcp`，Frontend 为 `http://127.0.0.1:8001`。
 
 隔离副本保留正式清单固定的 Agent Runtime Release tgz，并通过 cachebuster 避免复用旧 Plugin 缓存；正式清单不会被修改。需要调试本地 MCP 时，在平级 `quick-image-agent-runtime` 仓库独立运行和验证。脚本会自动寻找 `PATH` 或 macOS ChatGPT/Codex 应用包内的 CLI，自定义安装位置可通过 `CODEX_CLI_PATH=/path/to/codex` 指定。
 
@@ -98,7 +78,17 @@ pnpm quick-image -- env set \
 codex mcp login quick-image
 ```
 
-完成授权后新建 Codex 任务，以加载最新 Skill 和 MCP 工具。Codex 环境覆盖写入 `~/.codex/config.toml` 中带边界标记的 Quick Image 专属区块。CLI 不修改插件缓存；若已存在非 Quick Image 管理的同名 MCP 配置，会拒绝覆盖。
+完成授权后新建 Codex 任务，以加载最新 Skill 和 MCP 工具。本地安装只更新隔离 Plugin Overlay 和 Codex 插件缓存，不写入用户级 MCP 配置；若已有同名用户级 MCP 配置覆盖 Overlay，安装脚本会提示先通过 Codex 官方命令移除冲突。
+
+Codex 在远程 MCP 返回未授权或授权失效时，应先告知用户当前未登录并询问是否需要登录；用户确认后，由 Codex Agent 通过终端执行固定命令触发 OAuth：
+
+```bash
+codex mcp login quick-image
+```
+
+浏览器授权完成后新建 Codex 任务；桌面端仍未加载远程工具时，完全退出并重新打开 Codex。若 Agent 无法执行终端命令，可让维护者在本机终端执行同一条命令。若命令提示找不到 MCP，先重新安装或启用 Plugin，再重试登录。不要把 Token、授权码或终端输出放入对话或日志。
+
+Codex CLI 当前没有 `mcp doctor` 或 `mcp probe` 子命令。连接失败时可执行 `codex mcp get quick-image` 确认 MCP 已登记，但该命令不验证 OAuth 凭据；未登记时先重新安装或启用 Plugin，已登记且宿主没有明确网络错误时，仍以宿主 OAuth 错误或授权流程判断是否需要登录。
 
 ## OpenClaw 本地调试
 
@@ -111,7 +101,7 @@ openclaw config set tools.alsoAllow '["quick-image"]' --strict-json
 pnpm dev:install:openclaw
 ```
 
-本地安装命令会构建源码，执行 `openclaw plugins install --link .` 并启用插件，然后通过插件自己的 `env set` 切换到本地 Server 和 Frontend。`env set` 内部负责 `mcp set` 和 `gateway restart`。安装命令不会修改 `tools.allow`、`tools.alsoAllow` 或 `tools.deny`。
+本地安装命令会构建源码，执行 `openclaw plugins install . --force` 并启用插件，然后通过插件自己的 `env set` 切换到本地 Server 和 Frontend。`env set` 内部负责 `mcp set` 和 `gateway restart`。安装命令不会修改 `tools.allow`、`tools.alsoAllow` 或 `tools.deny`。
 
 安装后可使用插件注册的 OpenClaw 原生命令管理 URL：
 
@@ -125,7 +115,7 @@ openclaw quick-image env reset
 
 正式环境安装使用 `openclaw quick-image setup`。该命令合并 `tools.alsoAllow`、幂等登记正式环境 MCP，并在基础配置成功后执行 `gateway restart` 以加载配置。它不会在 setup 进程内启动 OAuth，而是在完成后输出登录命令；Agent 可以继续执行远程授权流程。setup 不会静默覆盖自定义 MCP 地址，非交互环境会保留自定义地址。
 
-远程授权时，Agent 执行第一条命令并把授权链接发给用户，同时提醒用户不要泄露授权码或在非私聊会话中发送。用户在手机浏览器批准后，只把一次性授权码发回；Agent 校验其为单个安全 code 后，将其作为 `--code` 的单个参数执行第二条命令。Agent 登录成功后先回复结果，再让用户在聊天中发送 `/restart`，避免 Agent 自行重启 Gateway 导致当前回复中断。无法安全执行固定命令时，回退为用户手动执行：
+远程工具调用失败时，Agent 应先执行 `openclaw mcp doctor --probe quick-image --json` 做连接与 OAuth 探测。输出 `requires OAuth authorization`、`OAuth credentials are not authorized`、OAuth 原因的 `probe failed` 等信号时，应将其视为当前未登录/授权失效，即使业务工具尚未被调用；输出 DNS、超时、连接拒绝等明确网络错误时，按连接故障处理；没有 `quick-image` server 时，先重新安装或启用插件。Agent 确认未登录后，应先告知用户并询问是否需要登录；用户确认后，执行第一条命令并把授权链接发给用户，同时提醒用户不要泄露授权码或在非私聊会话中发送。用户在手机浏览器批准后，只把一次性授权码发回；Agent 校验其为单个安全 code 后，将其作为 `--code` 的单个参数执行第二条命令。Agent 登录成功后先回复结果，再让用户在聊天中发送 `/restart`，避免 Agent 自行重启 Gateway 导致当前回复中断。无法安全执行固定命令时，回退为用户手动执行：
 
 ```bash
 openclaw mcp login quick-image

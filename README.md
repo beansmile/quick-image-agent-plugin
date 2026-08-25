@@ -28,9 +28,21 @@ codex plugin marketplace add https://github.com/beansmile/quick-image-agent-plug
 codex plugin add quick-image@quick-image
 ```
 
-安装后按 Codex 提示登录 Quick Image 并批准授权，然后新建一个 Codex 任务，让 Skill 和 MCP 工具生效。
+安装后需要在运行 Codex 的终端完成一次 Quick Image MCP 授权，然后新建一个 Codex 任务，让 Skill 和 MCP 工具生效。
 
-首次授权会打开 Quick Image 登录和授权页。批准后，浏览器会自动返回 Codex 并完成登录，不需要手工复制授权码。
+#### 登录或重新登录 MCP
+
+Codex 在远程 MCP 返回未授权或授权失效时，应先告知用户当前未登录并询问是否需要登录。用户确认后，让 Codex Agent 通过终端执行：
+
+```bash
+codex mcp login quick-image
+```
+
+命令会打开或输出 Quick Image 登录和授权页。完成浏览器授权后，回到 Codex 并新建任务；桌面端仍看不到 Quick Image 远程工具时，完全退出并重新打开 Codex。不要把 Token、授权码或终端输出发送给 Agent。
+
+如果 Codex 无法执行终端命令，也可以在本机终端手动执行同一条命令。
+
+如果命令提示找不到 `quick-image` MCP，请先确认插件已安装并启用，再重新执行登录命令。
 
 插件固定使用经过验证的 Quick Image Agent Runtime 版本。Codex 首次加载本地工具、OpenClaw 安装插件依赖时，只会安装当前平台所需的媒体处理依赖，不会下载其他操作系统的二进制。
 
@@ -53,7 +65,7 @@ openclaw quick-image setup
 
 #### 登录或重新登录 MCP
 
-`setup` 完成后、登录失效或需要切换账号时，可以让 OpenClaw 协助完成远程授权：
+`setup` 完成后、登录失效或需要切换账号时，OpenClaw 应先告知用户当前未登录并询问是否需要登录。用户确认后，才协助完成远程授权：
 
 1. OpenClaw 执行 `openclaw mcp login quick-image`，并把命令输出的授权链接发送给用户。
 2. 用户在手机浏览器打开链接，登录 Quick Image 并批准授权。

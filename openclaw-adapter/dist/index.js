@@ -1,5 +1,5 @@
 // src/openclaw-adapter/index.ts
-import path4 from "path";
+import path3 from "path";
 import {
   assertSupportedRuntime,
   AttachmentPipeline,
@@ -61,6 +61,10 @@ var OpenClawAttachmentRegistry = class {
       attachments: recentAttachmentsInChronologicalOrder(selected, limit),
       has_more: selected.length > limit
     };
+  }
+  async cleanupExpired() {
+    await this.initialize();
+    await this.readActiveRecords();
   }
   async resolve(attachmentId) {
     await this.initialize();
@@ -431,11 +435,6 @@ async function executeLocalTool(action) {
   }
 }
 
-// src/environment/codex.ts
-import { lstat as lstat2, mkdir as mkdir2, readFile as readFile2, rename, unlink, writeFile } from "fs/promises";
-import os2 from "os";
-import path3 from "path";
-
 // src/environment/command-executor.ts
 import { spawnSync } from "child_process";
 var systemCommandExecutor = {
@@ -567,174 +566,29 @@ function isExecutable(filePath) {
 }
 
 // src/environment/codex.ts
-var MANAGED_BLOCK_BEGIN = "# BEGIN quick-image managed MCP environment";
-var MANAGED_BLOCK_END = "# END quick-image managed MCP environment";
-var QUICK_IMAGE_TABLE_PATTERN = /^\s*\[\s*mcp_servers\s*\.\s*(?:quick-image|"quick-image"|'quick-image')\s*\]\s*(?:#.*)?$/m;
-async function setCodexEnvironment(urls, options) {
-  const runtime = codexRuntime(options);
-  const source = await readCodexConfig(runtime.configPath);
-  const updated = upsertCodexManagedBlock(source, urls, options.pluginVersion);
-  await writeCodexConfigAndVerify(runtime, source, updated, urls);
-  return readCodexEnvironmentStatus(options);
-}
-async function resetCodexEnvironment(options) {
-  const runtime = codexRuntime(options);
-  const source = await readCodexConfig(runtime.configPath);
-  const updated = removeCodexManagedBlock(source);
-  if (updated !== source) {
-    await writeCodexConfigAndVerify(runtime, source, updated);
-  }
-  const status = await readCodexEnvironmentStatus(options);
-  if (status.configured && (status.serverUrl !== QUICK_IMAGE_PRODUCTION_SERVER_URL || status.frontendUrl !== QUICK_IMAGE_PRODUCTION_FRONTEND_URL)) {
-    throw new Error("Codex \u5F53\u524D\u4ECD\u7531\u5176\u4ED6\u914D\u7F6E\u63D0\u4F9B\u81EA\u5B9A\u4E49 Quick Image URL\uFF0Cenv reset \u65E0\u6CD5\u5B89\u5168\u8986\u76D6\u8BE5\u914D\u7F6E");
-  }
-  return status;
-}
 async function readCodexEnvironmentStatus(options) {
   const runtime = codexRuntime(options);
-  const source = await readCodexConfig(runtime.configPath);
   let output;
   try {
     output = runtime.executor.run(runtime.codexBin, ["mcp", "get", QUICK_IMAGE_MCP_NAME, "--json"]).stdout;
   } catch {
-    return {
-      host: "codex",
-      configured: false,
-      source: "missing",
-      configPath: runtime.configPath
-    };
+    return { host: "codex", configured: false, source: "missing" };
   }
-  const raw = JSON.parse(output);
-  const config = parseCodexMcpOutput(raw);
+  const config = parseCodexMcpOutput(JSON.parse(output));
+  const usesProduction = config.serverUrl === QUICK_IMAGE_PRODUCTION_SERVER_URL && config.frontendUrl === QUICK_IMAGE_PRODUCTION_FRONTEND_URL;
   return {
     host: "codex",
     configured: true,
-    source: containsManagedBlock(source) ? "custom" : config.serverUrl === QUICK_IMAGE_PRODUCTION_SERVER_URL && config.frontendUrl === QUICK_IMAGE_PRODUCTION_FRONTEND_URL ? "plugin-default" : "external",
-    serverUrl: config.serverUrl,
-    frontendUrl: config.frontendUrl,
-    configPath: runtime.configPath,
+    source: usesProduction ? "plugin-default" : "custom",
+    ...config,
     authenticationCommand: "codex mcp login quick-image"
   };
-}
-function upsertCodexManagedBlock(source, urls, pluginVersion) {
-  const range = managedBlockRange(source);
-  if (!range && QUICK_IMAGE_TABLE_PATTERN.test(source)) {
-    throw new Error("Codex config.toml \u5DF2\u5305\u542B\u975E Quick Image \u7BA1\u7406\u7684 mcp_servers.quick-image \u914D\u7F6E\uFF1B\u8BF7\u5148\u624B\u5DE5\u5904\u7406\u8BE5\u51B2\u7A81");
-  }
-  const block = renderManagedBlock(urls, pluginVersion);
-  if (range) return `${source.slice(0, range.start)}${block}${source.slice(range.end)}`;
-  const prefix = source.length === 0 ? "" : `${source.replace(/\s*$/, "")}
-
-`;
-  return `${prefix}${block}`;
-}
-function removeCodexManagedBlock(source) {
-  const range = managedBlockRange(source);
-  if (!range) return source;
-  const separatorLength = source.slice(0, range.start).endsWith("\n\n") ? 1 : 0;
-  const before = source.slice(0, range.start - separatorLength);
-  const after = source.slice(range.end).replace(/^\n{2,}/, "\n");
-  return `${before}${after}`;
-}
-function containsManagedBlock(source) {
-  return managedBlockRange(source) !== void 0;
-}
-function renderManagedBlock(urls, pluginVersion) {
-  return [
-    MANAGED_BLOCK_BEGIN,
-    `[mcp_servers.${QUICK_IMAGE_MCP_NAME}]`,
-    `url = ${tomlString(urls.serverUrl)}`,
-    `oauth_resource = ${tomlString(urls.serverUrl)}`,
-    'auth = "oauth"',
-    `http_headers = { ${tomlString(QUICK_IMAGE_VERSION_HEADER)} = ${tomlString(pluginVersion)}, ${tomlString(QUICK_IMAGE_FRONTEND_HEADER)} = ${tomlString(urls.frontendUrl)} }`,
-    MANAGED_BLOCK_END,
-    ""
-  ].join("\n");
-}
-function managedBlockRange(source) {
-  const begins = markerIndexes(source, MANAGED_BLOCK_BEGIN);
-  const ends = markerIndexes(source, MANAGED_BLOCK_END);
-  if (begins.length === 0 && ends.length === 0) return void 0;
-  if (begins.length !== 1 || ends.length !== 1 || begins[0] === void 0 || ends[0] === void 0) {
-    throw new Error("Codex config.toml \u4E2D\u7684 Quick Image \u7BA1\u7406\u533A\u5757\u6807\u8BB0\u4E0D\u5B8C\u6574\u6216\u91CD\u590D");
-  }
-  if (begins[0] >= ends[0]) throw new Error("Codex config.toml \u4E2D\u7684 Quick Image \u7BA1\u7406\u533A\u5757\u987A\u5E8F\u65E0\u6548");
-  const start = lineStart(source, begins[0]);
-  const endLine = source.indexOf("\n", ends[0]);
-  return { start, end: endLine === -1 ? source.length : endLine + 1 };
-}
-function markerIndexes(source, marker) {
-  const indexes = [];
-  let offset = 0;
-  while (offset < source.length) {
-    const index = source.indexOf(marker, offset);
-    if (index === -1) break;
-    indexes.push(index);
-    offset = index + marker.length;
-  }
-  return indexes;
-}
-function lineStart(source, index) {
-  const previousNewline = source.lastIndexOf("\n", index - 1);
-  return previousNewline === -1 ? 0 : previousNewline + 1;
-}
-function tomlString(value) {
-  return JSON.stringify(value);
 }
 function codexRuntime(options) {
   return {
     codexBin: resolveCodexExecutable(options.codexBin),
-    configPath: options.configPath ?? resolveCodexConfigPath(),
     executor: options.executor ?? systemCommandExecutor
   };
-}
-function resolveCodexConfigPath() {
-  const codexHome = process.env.CODEX_HOME?.trim();
-  return path3.join(codexHome ? path3.resolve(codexHome) : path3.join(os2.homedir(), ".codex"), "config.toml");
-}
-async function readCodexConfig(configPath) {
-  try {
-    const details = await lstat2(configPath);
-    if (details.isSymbolicLink()) throw new Error(`\u62D2\u7EDD\u4FEE\u6539\u7B26\u53F7\u94FE\u63A5\u5F62\u5F0F\u7684 Codex \u914D\u7F6E\uFF1A${configPath}`);
-    if (!details.isFile()) throw new Error(`Codex \u914D\u7F6E\u4E0D\u662F\u666E\u901A\u6587\u4EF6\uFF1A${configPath}`);
-    return await readFile2(configPath, "utf8");
-  } catch (error) {
-    if (isFileSystemError(error, "ENOENT")) return "";
-    throw error;
-  }
-}
-async function writeCodexConfigAndVerify(runtime, original, updated, expected) {
-  await writeAtomic(runtime.configPath, updated);
-  try {
-    runtime.executor.run(runtime.codexBin, ["mcp", "list", "--json"]);
-    if (expected) {
-      const output = runtime.executor.run(runtime.codexBin, ["mcp", "get", QUICK_IMAGE_MCP_NAME, "--json"]);
-      const actual = parseCodexMcpOutput(JSON.parse(output.stdout));
-      if (actual.serverUrl !== expected.serverUrl || actual.frontendUrl !== expected.frontendUrl) {
-        throw new Error("Codex \u672A\u52A0\u8F7D\u521A\u5199\u5165\u7684 Quick Image MCP \u914D\u7F6E");
-      }
-    }
-  } catch (error) {
-    await restoreCodexConfig(runtime.configPath, original);
-    throw error;
-  }
-}
-async function writeAtomic(filePath, content) {
-  await mkdir2(path3.dirname(filePath), { recursive: true, mode: 448 });
-  const temporaryPath = `${filePath}.quick-image-${process.pid}.tmp`;
-  await writeFile(temporaryPath, content, { mode: 384 });
-  await rename(temporaryPath, filePath);
-}
-async function restoreCodexConfig(filePath, original) {
-  if (original === "") {
-    try {
-      await unlink(filePath);
-    } catch (error) {
-      if (!isFileSystemError(error, "ENOENT")) throw error;
-    }
-    return;
-  }
-  await writeAtomic(filePath, original);
 }
 function parseCodexMcpOutput(value) {
   if (!isObject(value) || !isObject(value.transport)) throw new Error("Codex MCP \u72B6\u6001\u8F93\u51FA\u65E0\u6548");
@@ -748,9 +602,6 @@ function parseCodexMcpOutput(value) {
 }
 function isObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function isFileSystemError(error, code) {
-  return error instanceof Error && "code" in error && error.code === code;
 }
 
 // src/environment/openclaw.ts
@@ -812,16 +663,17 @@ function isObject2(value) {
 // src/environment/service.ts
 async function executeEnvironmentCommand(options) {
   const hosts = options.host === "all" ? ["codex", "openclaw"] : [options.host];
+  if (options.action !== "status" && hosts.includes("codex")) {
+    throw new Error("Codex \u73AF\u5883\u7531 Plugin MCP \u6E05\u5355\u7BA1\u7406\uFF0Cenv set/reset \u4E0D\u4F1A\u4FEE\u6539 config.toml");
+  }
   const urls = options.action === "set" ? normalizeEnvironmentUrls(options.serverUrl, options.frontendUrl) : void 0;
   const results = [];
   for (const host of hosts) {
     if (host === "codex") {
       const codexOptions = {
-        pluginVersion: options.pluginVersion,
-        ...options.codexBin ? { codexBin: options.codexBin } : {},
-        ...options.codexConfigPath ? { configPath: options.codexConfigPath } : {}
+        ...options.codexBin ? { codexBin: options.codexBin } : {}
       };
-      results.push(options.action === "set" ? await setCodexEnvironment(urls, codexOptions) : options.action === "reset" ? await resetCodexEnvironment(codexOptions) : await readCodexEnvironmentStatus(codexOptions));
+      results.push(await readCodexEnvironmentStatus(codexOptions));
       continue;
     }
     const openClawOptions = {
@@ -924,10 +776,10 @@ async function configureProductionMcp(options) {
   ]);
   return action;
 }
-function readOptionalConfigObject(openClawBin, executor, path5) {
+function readOptionalConfigObject(openClawBin, executor, path4) {
   let output;
   try {
-    output = executor.run(openClawBin, ["config", "get", path5, "--json"]).stdout;
+    output = executor.run(openClawBin, ["config", "get", path4, "--json"]).stdout;
   } catch (error) {
     if (errorMessage(error).includes("Config path not found:")) return void 0;
     throw error;
@@ -936,9 +788,9 @@ function readOptionalConfigObject(openClawBin, executor, path5) {
   try {
     value = JSON.parse(output);
   } catch {
-    throw new Error(`OpenClaw ${path5} \u914D\u7F6E\u4E0D\u662F\u6709\u6548 JSON`);
+    throw new Error(`OpenClaw ${path4} \u914D\u7F6E\u4E0D\u662F\u6709\u6548 JSON`);
   }
-  if (!isObject3(value)) throw new Error(`OpenClaw ${path5} \u914D\u7F6E\u5FC5\u987B\u662F\u5BF9\u8C61`);
+  if (!isObject3(value)) throw new Error(`OpenClaw ${path4} \u914D\u7F6E\u5FC5\u987B\u662F\u5BF9\u8C61`);
   return value;
 }
 function readStringArray(value, field) {
@@ -1124,6 +976,16 @@ function createListAttachmentsTool(registry, pendingRegistrations, context) {
     }
   };
 }
+function enqueuePendingRegistration(pendingRegistrations, sessionKey, register) {
+  const previous = pendingRegistrations.get(sessionKey);
+  const queued = (previous ?? Promise.resolve()).catch(() => void 0).then(register);
+  pendingRegistrations.set(sessionKey, queued);
+  const cleanup = () => {
+    if (pendingRegistrations.get(sessionKey) === queued) pendingRegistrations.delete(sessionKey);
+  };
+  void queued.then(cleanup, cleanup);
+  return queued;
+}
 function parsePreviewParameters(value) {
   if (!isObject4(value)) throw new Error("\u9884\u89C8\u53C2\u6570\u65E0\u6548\u3002");
   const displayUrl = parseHttpsUrl(value.display_url, "display_url");
@@ -1203,7 +1065,7 @@ var plugin = {
     const getPipeline = () => {
       pipelinePromise ??= Promise.resolve().then(async () => {
         assertSupportedRuntime();
-        return AttachmentPipeline.create(path4.join(stateDirectory, "openclaw-attachment-pipeline"));
+        return AttachmentPipeline.create(path3.join(stateDirectory, "openclaw-attachment-pipeline"));
       });
       return pipelinePromise;
     };
@@ -1214,17 +1076,12 @@ var plugin = {
       if (!sessionKey || attachments.length === 0) return;
       const runId = event.runId ?? context.runId;
       const messageId = event.messageId ?? context.messageId;
-      const registration = registry.register({
+      const registration = enqueuePendingRegistration(pendingRegistrations, sessionKey, () => registry.register({
         sessionKey,
         ...runId ? { runId } : {},
         ...messageId ? { messageId } : {},
         attachments
-      });
-      pendingRegistrations.set(sessionKey, registration);
-      const cleanup = () => {
-        if (pendingRegistrations.get(sessionKey) === registration) pendingRegistrations.delete(sessionKey);
-      };
-      void registration.then(cleanup, cleanup);
+      }));
       return registration;
     });
     api.registerTool((context) => createListAttachmentsTool(registry, pendingRegistrations, context), {
@@ -1239,8 +1096,9 @@ var plugin = {
     }
     api.registerTool((context) => createPreviewTool(api, context), { name: PREVIEW_TOOL_NAME });
     const cleanupTimer = setInterval(() => {
-      if (!pipelinePromise) return;
-      void pipelinePromise.then((pipeline) => pipeline.cleanupExpired()).catch(() => {
+      const cleanupTasks = [registry.cleanupExpired()];
+      if (pipelinePromise) cleanupTasks.push(pipelinePromise.then((pipeline) => pipeline.cleanupExpired()));
+      void Promise.all(cleanupTasks).catch(() => {
         process.stderr.write(`${JSON.stringify({ code: "ATTACHMENT_CLEANUP_FAILED" })}
 `);
       });
@@ -1252,5 +1110,6 @@ var openclaw_adapter_default = plugin;
 export {
   createListAttachmentsTool,
   createPreviewTool,
-  openclaw_adapter_default as default
+  openclaw_adapter_default as default,
+  enqueuePendingRegistration
 };

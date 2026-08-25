@@ -27,8 +27,7 @@ export async function runQuickImageCli(argv: string[]): Promise<string> {
       "server-url": { type: "string" },
       "frontend-url": { type: "string" },
       "codex-bin": { type: "string" },
-      "openclaw-bin": { type: "string" },
-      "codex-config": { type: "string" }
+      "openclaw-bin": { type: "string" }
     }
   });
   const host = parseHost(values.host);
@@ -43,8 +42,7 @@ export async function runQuickImageCli(argv: string[]): Promise<string> {
     ...(values["server-url"] ? { serverUrl: values["server-url"] } : {}),
     ...(values["frontend-url"] ? { frontendUrl: values["frontend-url"] } : {}),
     ...(values["codex-bin"] ? { codexBin: values["codex-bin"] } : {}),
-    ...(values["openclaw-bin"] ? { openClawBin: values["openclaw-bin"] } : {}),
-    ...(values["codex-config"] ? { codexConfigPath: values["codex-config"] } : {})
+    ...(values["openclaw-bin"] ? { openClawBin: values["openclaw-bin"] } : {})
   });
   return formatEnvironmentResult(actionValue, statuses);
 }
@@ -61,9 +59,9 @@ function isEnvironmentAction(value: string | undefined): value is EnvironmentAct
 function usageError(): Error {
   return new Error([
     "用法：",
-    "  quick-image env set --host <codex|openclaw|all> --server-url <URL> --frontend-url <URL>",
+    "  quick-image env set --host openclaw --server-url <URL> --frontend-url <URL>",
     "  quick-image env status --host <codex|openclaw|all>",
-    "  quick-image env reset --host <codex|openclaw|all>"
+    "  quick-image env reset --host openclaw"
   ].join("\n"));
 }
 

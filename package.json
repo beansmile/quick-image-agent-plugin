@@ -34,7 +34,7 @@
     "check": "pnpm typecheck && pnpm test && pnpm build && pnpm validate",
     "quick-image": "tsx src/cli/quick-image.ts",
     "dev:install:codex": "pnpm build && node scripts/install-local-codex.mjs",
-    "dev:install:openclaw": "pnpm build && openclaw plugins install --link . && openclaw plugins enable quick-image && openclaw quick-image env set --server-url http://127.0.0.1:3000/mcp --frontend-url http://127.0.0.1:8001",
+    "dev:install:openclaw": "pnpm build && openclaw plugins install . --force && openclaw plugins enable quick-image && openclaw quick-image env set --server-url http://127.0.0.1:3000/mcp --frontend-url http://127.0.0.1:8001",
     "doctor": "tsx src/cli/doctor.ts",
     "pack:check": "npm pack --dry-run",
     "runtime:set": "node scripts/set-runtime-version.mjs",

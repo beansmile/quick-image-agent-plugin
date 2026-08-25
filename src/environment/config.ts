@@ -10,6 +10,15 @@ export interface EnvironmentUrls {
   frontendUrl: string;
 }
 
+export interface EnvironmentStatus {
+  host: "codex" | "openclaw";
+  configured: boolean;
+  source: "plugin-default" | "custom" | "production-default" | "missing";
+  serverUrl?: string;
+  frontendUrl?: string;
+  authenticationCommand?: string;
+}
+
 export interface OpenClawMcpConfig {
   transport: "streamable-http";
   url: string;

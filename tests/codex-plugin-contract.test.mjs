@@ -14,6 +14,7 @@ afterEach(async () => {
 describe("Codex plugin contract", () => {
   it("installs the repository-root plugin from the GitHub marketplace source", async () => {
     const readme = await readFile(path.resolve("README.md"), "utf8");
+    const localInstaller = await readFile(path.resolve("scripts/install-local-codex.mjs"), "utf8");
     const marketplace = await readJson(path.resolve(".agents/plugins/marketplace.json"));
     const installSection = readme.slice(readme.indexOf("### Codex"), readme.indexOf("### OpenClaw"));
 
@@ -23,6 +24,9 @@ describe("Codex plugin contract", () => {
     );
     expect(installSection).toContain("codex plugin add quick-image@quick-image");
     expect(installSection).not.toContain("在 Codex 的 Plugin Marketplace 中找到");
+    expect(localInstaller).toContain("verifyDevelopmentUrls");
+    expect(localInstaller).not.toContain("setDevelopmentUrls");
+    expect(localInstaller).not.toContain('"env",\n    "set"');
     expect(marketplace).toMatchObject({
       name: "quick-image",
       plugins: [{
@@ -66,21 +70,23 @@ describe("Codex plugin contract", () => {
       repositoryRoot: fixtureRoot,
       pluginRoot,
       cachebuster: "local-test",
-      markerName: ".quick-image-dev-overlay"
+      markerName: ".quick-image-dev-overlay",
+      serverUrl: "http://127.0.0.1:3000/mcp",
+      frontendUrl: "http://127.0.0.1:8001"
     });
 
     const manifest = await readJson(path.join(pluginRoot, ".codex-plugin", "plugin.json"));
     const mcpConfig = await readJson(path.join(pluginRoot, ".mcp.json"));
     expect(manifest.version).toBe("0.1.0+codex.local-test");
     expect(manifest.mcpServers).toBe("./.mcp.json");
-    expect(mcpConfig.mcpServers["quick-image"].url).toBe("https://quickimage.ai/mcp");
+    expect(mcpConfig.mcpServers["quick-image"].url).toBe("http://127.0.0.1:3000/mcp");
     expect(mcpConfig.mcpServers["quick-image"].http_headers).toEqual({
       "X-Quick-Image-Plugin-Version": "0.1.0",
-      "X-Quick-Image-Frontend-URL": "https://quickimage.ai"
+      "X-Quick-Image-Frontend-URL": "http://127.0.0.1:8001"
     });
     expect(mcpConfig.mcpServers["quick-image"].headers).toEqual({
       "X-Quick-Image-Plugin-Version": "0.1.0",
-      "X-Quick-Image-Frontend-URL": "https://quickimage.ai"
+      "X-Quick-Image-Frontend-URL": "http://127.0.0.1:8001"
     });
     expect(mcpConfig.mcpServers["quick-image-local"]).toEqual({
       command: "npx",

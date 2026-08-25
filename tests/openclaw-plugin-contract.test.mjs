@@ -30,7 +30,7 @@ describe("OpenClaw plugin contract", () => {
     const packageJson = await readJson(path.resolve("package.json"));
     const installer = packageJson.scripts["dev:install:openclaw"];
 
-    expect(installer).toContain("openclaw plugins install --link .");
+    expect(installer).toContain("openclaw plugins install . --force");
     expect(installer).toContain("openclaw plugins enable quick-image");
     expect(installer).toContain("openclaw quick-image env set");
     expect(installer).not.toContain("plugins doctor");
