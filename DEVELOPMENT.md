@@ -123,9 +123,9 @@ openclaw quick-image env status
 openclaw quick-image env reset
 ```
 
-正式环境安装使用 `openclaw quick-image setup`。该命令合并 `tools.alsoAllow`、幂等登记正式环境 MCP，并在基础配置成功后执行 `gateway restart` 以加载配置。它不会询问或执行 OAuth 登录，而是在完成后提示用户手动运行登录命令；也不会静默覆盖自定义 MCP 地址，非交互环境会保留自定义地址。
+正式环境安装使用 `openclaw quick-image setup`。该命令合并 `tools.alsoAllow`、幂等登记正式环境 MCP，并在基础配置成功后执行 `gateway restart` 以加载配置。它不会在 setup 进程内启动 OAuth，而是在完成后输出登录命令；Agent 可以继续执行远程授权流程。setup 不会静默覆盖自定义 MCP 地址，非交互环境会保留自定义地址。
 
-安装命令不会自动启动 OAuth。需要授权时手动执行：
+远程授权时，Agent 执行第一条命令并把授权链接发给用户，同时提醒用户不要泄露授权码或在非私聊会话中发送。用户在手机浏览器批准后，只把一次性授权码发回；Agent 校验其为单个安全 code 后，将其作为 `--code` 的单个参数执行第二条命令。Agent 登录成功后先回复结果，再让用户在聊天中发送 `/restart`，避免 Agent 自行重启 Gateway 导致当前回复中断。无法安全执行固定命令时，回退为用户手动执行：
 
 ```bash
 openclaw mcp login quick-image
@@ -133,13 +133,13 @@ openclaw mcp login quick-image --code '<code>'
 openclaw gateway restart
 ```
 
-第一条命令会打印授权链接。浏览器批准后，授权完成页会显示一次性授权码和已经填好授权码的完整命令。执行带授权码的登录命令后重启 Gateway，下一轮对话会加载报价和生成工具；`openclaw mcp probe quick-image` 仅用于连接故障排查。
+Agent 不以 owner 验证或会话类型作为远程授权前置条件，但必须提醒用户不要泄露一次性 code 或在非私聊会话中发送；不允许 Agent 接受完整命令或其他 Shell 内容，Token 始终由 OpenClaw OAuth 存储管理且不得进入对话。执行带授权码的登录命令后重启 Gateway，下一轮对话会加载报价和生成工具；`openclaw mcp probe quick-image` 仅用于连接故障排查。
 
 ## OpenClaw 适配契约
 
 OpenClaw 原生 manifest 不负责导入 MCP 配置。正式安装流程必须登记唯一的远程 MCP，完成登录后重启 Gateway 以加载配置和凭据。
 
-Doctor 是可选的安装验证与故障排查工具，不是插件启用前置条件。Quick Image 不注册会话内容 Hook 或 owner 专属 Trusted Tool Policy，也不额外限制私聊或群聊。共享 Skill 要求 Agent 根据当前会话上下文仅执行 owner 发出的 Quick Image 指令，但这属于模型行为约束，不构成原生运行时安全边界。实际访问范围仍由 OpenClaw 自身的渠道访问策略和工具策略决定；Doctor 只检查 Quick Image 原生工具是否被当前工具策略开放。
+Doctor 是可选的安装验证与故障排查工具，不是插件启用前置条件。Quick Image 不注册会话内容 Hook 或 owner 专属 Trusted Tool Policy，也不在原生运行时额外限制私聊或群聊。共享 Skill 要求 Agent 根据当前会话上下文仅执行 owner 发出的 Quick Image 生成指令，但远程授权流程不以 owner 验证或会话类型作为前置条件，只负责提示 code 保密。这些都属于模型行为约束，不构成原生运行时安全边界。实际访问范围仍由 OpenClaw 自身的渠道访问策略和工具策略决定；Doctor 只检查 Quick Image 原生工具是否被当前工具策略开放。
 
 内置适配层使用 `message_received` 登记入站媒体，并通过 `quick_image_list_attachments` 返回不含路径的附件 ID。`quick_image_send_preview` 只向当前会话的可信路由发送 Quick Image 预览，不接受任意渠道、收件人或消息正文。通用 `message` 工具不属于 Quick Image 所需权限。
 
