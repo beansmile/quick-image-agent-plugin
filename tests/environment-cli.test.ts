@@ -1,15 +1,6 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { CommandExecutor } from "../src/environment/command-executor.js";
-import {
-  containsManagedBlock,
-  removeCodexManagedBlock,
-  resetCodexEnvironment,
-  setCodexEnvironment,
-  upsertCodexManagedBlock
-} from "../src/environment/codex.js";
+import { readCodexEnvironmentStatus } from "../src/environment/codex.js";
 import {
   buildOpenClawMcpConfig,
   normalizeEnvironmentUrls,
@@ -18,12 +9,7 @@ import {
   validateServerUrl
 } from "../src/environment/config.js";
 import { setOpenClawEnvironment } from "../src/environment/openclaw.js";
-
-const temporaryDirectories: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
-});
+import { executeEnvironmentCommand } from "../src/environment/service.js";
 
 describe("Quick Image environment URL validation", () => {
   it("accepts HTTPS remote URLs and loopback HTTP URLs", () => {
@@ -61,62 +47,31 @@ describe("Quick Image environment URL validation", () => {
   });
 });
 
-describe("Codex managed MCP override", () => {
-  const urls = {
-    serverUrl: "https://staging-api.example.com/mcp",
-    frontendUrl: "https://staging.example.com"
-  };
-
-  it("adds, replaces, and removes only the marked Quick Image block", () => {
-    const original = 'model = "gpt-test"\n';
-    const added = upsertCodexManagedBlock(original, urls, "0.1.0");
-    expect(containsManagedBlock(added)).toBe(true);
-    expect(added).toContain('url = "https://staging-api.example.com/mcp"');
-    expect(added).toContain('"X-Quick-Image-Frontend-URL" = "https://staging.example.com"');
-
-    const replaced = upsertCodexManagedBlock(added, {
+describe("Codex plugin MCP environment", () => {
+  it("reads the effective plugin manifest configuration without editing config.toml", async () => {
+    const urls = {
       serverUrl: "http://127.0.0.1:3000/mcp",
       frontendUrl: "http://127.0.0.1:8001"
-    }, "0.2.0");
-    expect(replaced.match(/BEGIN quick-image/g)).toHaveLength(1);
-    expect(replaced).not.toContain("staging-api.example.com");
-    expect(removeCodexManagedBlock(replaced)).toBe(original);
-  });
+    };
+    const executor = codexExecutor(() => urls);
 
-  it("refuses to overwrite an unowned Quick Image table or broken markers", () => {
-    expect(() => upsertCodexManagedBlock(
-      '[mcp_servers."quick-image"]\nurl = "https://example.com/mcp"\n',
-      urls,
-      "0.1.0"
-    )).toThrow("非 Quick Image 管理");
-    expect(() => containsManagedBlock("# BEGIN quick-image managed MCP environment\n")).toThrow("标记不完整");
-  });
+    const status = await readCodexEnvironmentStatus({ codexBin: "/bin/echo", executor });
 
-  it("writes an atomic user override and reset falls back to the plugin defaults", async () => {
-    const directory = await temporaryDirectory();
-    const configPath = path.join(directory, "config.toml");
-    await writeFile(configPath, 'model = "gpt-test"\n');
-    let effective = urls;
-    const executor = codexExecutor(() => effective);
-
-    const status = await setCodexEnvironment(urls, {
-      pluginVersion: "0.1.0",
-      codexBin: "/bin/echo",
-      configPath,
-      executor
-    });
     expect(status).toMatchObject({ host: "codex", source: "custom", ...urls });
-    await expect(readFile(configPath, "utf8")).resolves.toContain("BEGIN quick-image managed MCP environment");
+    expect(status).not.toHaveProperty("configPath");
+    expect(executor.run).toHaveBeenCalledTimes(1);
+  });
 
-    effective = productionEnvironmentUrls();
-    const reset = await resetCodexEnvironment({
+  it.each(["set", "reset"] as const)("rejects Codex env %s because the plugin manifest owns URLs", async (action) => {
+    await expect(executeEnvironmentCommand({
+      action,
+      host: "codex",
       pluginVersion: "0.1.0",
-      codexBin: "/bin/echo",
-      configPath,
-      executor
-    });
-    expect(reset).toMatchObject({ host: "codex", source: "plugin-default", ...effective });
-    await expect(readFile(configPath, "utf8")).resolves.toBe('model = "gpt-test"\n');
+      ...(action === "set" ? {
+        serverUrl: "http://127.0.0.1:3000/mcp",
+        frontendUrl: "http://127.0.0.1:8001"
+      } : {})
+    })).rejects.toThrow("Plugin MCP 清单");
   });
 });
 
@@ -172,10 +127,4 @@ function codexExecutor(urls: () => { serverUrl: string; frontendUrl: string }): 
       return { stdout: "[]", stderr: "" };
     })
   };
-}
-
-async function temporaryDirectory(): Promise<string> {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "quick-image-env-test-"));
-  temporaryDirectories.push(directory);
-  return directory;
 }

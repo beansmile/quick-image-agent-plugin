@@ -1,10 +1,5 @@
-import {
-  readCodexEnvironmentStatus,
-  resetCodexEnvironment,
-  setCodexEnvironment,
-  type EnvironmentStatus
-} from "./codex.js";
-import { normalizeEnvironmentUrls } from "./config.js";
+import { readCodexEnvironmentStatus } from "./codex.js";
+import { normalizeEnvironmentUrls, type EnvironmentStatus } from "./config.js";
 import {
   readOpenClawEnvironmentStatus,
   resetOpenClawEnvironment,
@@ -22,11 +17,13 @@ export interface EnvironmentCommandOptions {
   frontendUrl?: string;
   codexBin?: string;
   openClawBin?: string;
-  codexConfigPath?: string;
 }
 
 export async function executeEnvironmentCommand(options: EnvironmentCommandOptions): Promise<EnvironmentStatus[]> {
   const hosts = options.host === "all" ? ["codex", "openclaw"] as const : [options.host];
+  if (options.action !== "status" && hosts.includes("codex")) {
+    throw new Error("Codex 环境由 Plugin MCP 清单管理，env set/reset 不会修改 config.toml");
+  }
   const urls = options.action === "set"
     ? normalizeEnvironmentUrls(options.serverUrl, options.frontendUrl)
     : undefined;
@@ -35,15 +32,9 @@ export async function executeEnvironmentCommand(options: EnvironmentCommandOptio
   for (const host of hosts) {
     if (host === "codex") {
       const codexOptions = {
-        pluginVersion: options.pluginVersion,
-        ...(options.codexBin ? { codexBin: options.codexBin } : {}),
-        ...(options.codexConfigPath ? { configPath: options.codexConfigPath } : {})
+        ...(options.codexBin ? { codexBin: options.codexBin } : {})
       };
-      results.push(options.action === "set"
-        ? await setCodexEnvironment(urls!, codexOptions)
-        : options.action === "reset"
-          ? await resetCodexEnvironment(codexOptions)
-          : await readCodexEnvironmentStatus(codexOptions));
+      results.push(await readCodexEnvironmentStatus(codexOptions));
       continue;
     }
 

@@ -35,36 +35,23 @@ pnpm check
 - Server：`https://quickimage.ai/mcp`
 - Frontend：`https://quickimage.ai`
 
-插件安装后可显式覆盖 Server 和 Frontend URL。仓库不保存环境名称，也不会根据 Git 分支自动切换服务；分支只决定安装的代码版本。`dev:install:*` 是唯一例外，它会在本地安装完成后调用同一个 `env set` 命令切换到开发地址：
+Codex 的 Server 和 Frontend URL 由 Plugin MCP 清单提供：GitHub 安装使用仓库正式清单，本地调试安装使用隔离 Overlay 中的开发清单。Codex 环境切换不修改 `~/.codex/config.toml`。OpenClaw 仍可通过原生命令显式覆盖 URL：
 
 ```bash
 pnpm quick-image -- env set \
-  --host all \
+  --host openclaw \
   --server-url https://<server>/mcp \
   --frontend-url https://<frontend>
 ```
 
-从 GitHub 分支安装时，可直接运行包内 CLI：
-
-```bash
-npx --yes \
-  --package git+https://github.com/beansmile/quick-image-agent-plugin.git#<ref> \
-  quick-image env set \
-  --host all \
-  --server-url https://<server>/mcp \
-  --frontend-url https://<frontend>
-```
-
-查看当前实际生效的宿主配置或清除自定义覆盖：
+查看 Codex 或全部宿主当前实际生效的配置：
 
 ```bash
 pnpm quick-image -- env status --host codex
-pnpm quick-image -- env reset --host codex
+pnpm quick-image -- env status --host all
 ```
 
-GitHub 安装场景下，`status` 和 `reset` 使用与上方 `set` 相同的 `npx --package ... quick-image` 前缀。
-
-`env reset` 不保存环境文件：Codex 删除 Quick Image 管理的用户级 MCP 覆盖并回退到插件正式清单，OpenClaw 重新写入正式地址。Server 路径必须是 `/mcp`；远程地址必须使用 HTTPS，仅 loopback 本地调试允许 HTTP。修改 URL 后需按命令输出重新完成 OAuth。
+`env set/reset` 仅用于 OpenClaw；Codex 若需切换环境，应安装对应环境的 Plugin。Server 路径必须是 `/mcp`；远程地址必须使用 HTTPS，仅 loopback 本地调试允许 HTTP。修改 URL 后需按命令输出重新完成 OAuth。
 
 ## Codex 本地调试
 
@@ -74,21 +61,12 @@ Codex 使用 `.codex-plugin/plugin.json`，安装后由宿主管理 Quick Image 
 pnpm dev:install:codex
 ```
 
-如果插件已经安装，需要将所有受支持宿主统一切换到本地 Server 和 Frontend，可执行：
-
-```bash
-pnpm quick-image -- env set \
-  --host all \
-  --server-url http://127.0.0.1:3000/mcp \
-  --frontend-url http://127.0.0.1:8001
-```
-
 `pnpm dev:install:codex` 会完成以下操作：
 
 1. 构建源码。
-2. 生成隔离的 `quick-image-local` Marketplace。
+2. 生成隔离的 `quick-image-local` Marketplace，并将其 Plugin MCP 清单写为本地 Server 和 Frontend URL。
 3. 通过官方 `codex plugin marketplace add` 与 `codex plugin add` 安装或刷新插件。
-4. 将 Server 切换为 `http://127.0.0.1:3000/mcp`，Frontend 切换为 `http://127.0.0.1:8001`。
+4. 校验 Codex 实际加载的 Server 为 `http://127.0.0.1:3000/mcp`，Frontend 为 `http://127.0.0.1:8001`。
 
 隔离副本保留正式清单固定的 Agent Runtime Release tgz，并通过 cachebuster 避免复用旧 Plugin 缓存；正式清单不会被修改。需要调试本地 MCP 时，在平级 `quick-image-agent-runtime` 仓库独立运行和验证。脚本会自动寻找 `PATH` 或 macOS ChatGPT/Codex 应用包内的 CLI，自定义安装位置可通过 `CODEX_CLI_PATH=/path/to/codex` 指定。
 
@@ -98,7 +76,7 @@ pnpm quick-image -- env set \
 codex mcp login quick-image
 ```
 
-完成授权后新建 Codex 任务，以加载最新 Skill 和 MCP 工具。Codex 环境覆盖写入 `~/.codex/config.toml` 中带边界标记的 Quick Image 专属区块。CLI 不修改插件缓存；若已存在非 Quick Image 管理的同名 MCP 配置，会拒绝覆盖。
+完成授权后新建 Codex 任务，以加载最新 Skill 和 MCP 工具。本地安装只更新隔离 Plugin Overlay 和 Codex 插件缓存，不写入用户级 MCP 配置；若已有同名用户级 MCP 配置覆盖 Overlay，安装脚本会提示先通过 Codex 官方命令移除冲突。
 
 ## OpenClaw 本地调试
 
@@ -111,7 +89,7 @@ openclaw config set tools.alsoAllow '["quick-image"]' --strict-json
 pnpm dev:install:openclaw
 ```
 
-本地安装命令会构建源码，执行 `openclaw plugins install --link .` 并启用插件，然后通过插件自己的 `env set` 切换到本地 Server 和 Frontend。`env set` 内部负责 `mcp set` 和 `gateway restart`。安装命令不会修改 `tools.allow`、`tools.alsoAllow` 或 `tools.deny`。
+本地安装命令会构建源码，执行 `openclaw plugins install . --force` 并启用插件，然后通过插件自己的 `env set` 切换到本地 Server 和 Frontend。`env set` 内部负责 `mcp set` 和 `gateway restart`。安装命令不会修改 `tools.allow`、`tools.alsoAllow` 或 `tools.deny`。
 
 安装后可使用插件注册的 OpenClaw 原生命令管理 URL：
 

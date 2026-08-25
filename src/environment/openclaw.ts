@@ -6,9 +6,9 @@ import {
   QUICK_IMAGE_MCP_NAME,
   QUICK_IMAGE_PRODUCTION_FRONTEND_URL,
   QUICK_IMAGE_PRODUCTION_SERVER_URL,
+  type EnvironmentStatus,
   type EnvironmentUrls
 } from "./config.js";
-import type { EnvironmentStatus } from "./codex.js";
 import { resolveOpenClawExecutable } from "./executables.js";
 
 interface OpenClawOptions {

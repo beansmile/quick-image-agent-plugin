@@ -24,7 +24,7 @@ await preparePluginOverlay();
 await writeMarketplaceManifest();
 await registerMarketplace();
 installPlugin();
-setDevelopmentUrls();
+verifyDevelopmentUrls();
 
 process.stdout.write(
   [
@@ -42,7 +42,9 @@ async function preparePluginOverlay() {
     repositoryRoot,
     pluginRoot,
     cachebuster: `local-${timestamp()}`,
-    markerName: MARKER_NAME
+    markerName: MARKER_NAME,
+    serverUrl: DEV_SERVER_URL,
+    frontendUrl: DEV_FRONTEND_URL
   });
 }
 
@@ -98,22 +100,20 @@ function installPlugin() {
   runCodex(["plugin", "add", `${PLUGIN_NAME}@${MARKETPLACE_NAME}`, "--json"]);
 }
 
-function setDevelopmentUrls() {
-  const result = spawnSync(process.execPath, [
-    path.join(repositoryRoot, "dist", "cli", "quick-image.js"),
-    "env",
-    "set",
-    "--host",
-    "codex",
-    "--server-url",
-    DEV_SERVER_URL,
-    "--frontend-url",
-    DEV_FRONTEND_URL,
-    "--codex-bin",
-    codexCommand
-  ], { cwd: repositoryRoot, encoding: "utf8", stdio: "inherit" });
-  if (result.error) throw new Error(`无法设置 Codex 开发 URL：${result.error.message}`);
-  if (result.status !== 0) throw new Error("quick-image env set --host codex 执行失败");
+function verifyDevelopmentUrls() {
+  const result = runCodex(["mcp", "get", PLUGIN_NAME, "--json"], { capture: true });
+  const config = JSON.parse(result.stdout);
+  const transport = config.transport ?? {};
+  const headers = transport.http_headers ?? {};
+  if (
+    transport.url !== DEV_SERVER_URL ||
+    headers["X-Quick-Image-Frontend-URL"] !== DEV_FRONTEND_URL
+  ) {
+    throw new Error([
+      "Codex 未加载本地 Overlay 中的 Quick Image 开发 URL。",
+      "如果存在同名用户级 MCP 覆盖，请先执行 codex mcp remove quick-image 后重试。"
+    ].join(" "));
+  }
 }
 
 function runCodex(args, { capture = false } = {}) {
