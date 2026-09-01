@@ -14,7 +14,7 @@ Quick Image Agent Plugin 让 Codex 和 OpenClaw 可以使用当前对话中的�
 
 - 一个可正常登录的 Quick Image 账号。
 - Codex，或 OpenClaw 2026.6.34 及以上版本。
-- macOS、Linux 或 Windows WSL2；暂不支持原生 Windows。
+- macOS、Linux 或 Windows WSL2；WSL2 是 Windows 的主要兼容目标，原生 Windows 会尝试兼容但不作完整兼容保证。
 - Codex 本地工具和 OpenClaw 需要 Node.js 20 或更高版本。
 
 ## 安装

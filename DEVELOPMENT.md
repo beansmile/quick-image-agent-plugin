@@ -21,7 +21,7 @@ Quick Image Agent Plugin 为 Codex 和 OpenClaw 提供同一份生成 Skill 与�
 
 - Node.js 20 或更高版本。
 - pnpm 10。
-- macOS、Linux 或 Windows WSL2；暂不支持原生 Windows。
+- macOS、Linux 或 Windows WSL2；WSL2 是 Windows 的主要兼容目标，原生 Windows 会尝试兼容但不作完整兼容保证。
 
 ```bash
 pnpm install --frozen-lockfile
