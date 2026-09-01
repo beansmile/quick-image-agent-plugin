@@ -7,7 +7,7 @@ import {
 } from "quick-image-agent-runtime";
 import { OpenClawAttachmentRegistry, type OpenClawAttachmentKind } from "../openclaw/attachment-registry.js";
 import { createOpenClawLocalTools, OPENCLAW_LOCAL_TOOL_NAMES } from "./local-tools.js";
-import { registerOpenClawEnvironmentCli } from "./environment-cli.js";
+import { registerOpenClawCli } from "./environment-cli.js";
 import type { OpenClawNativeTool, OpenClawToolContext } from "./types.js";
 
 const PREVIEW_TOOL_NAME = "quick_image_send_preview";
@@ -61,7 +61,7 @@ interface OpenClawPluginApi {
     factory: (context: OpenClawToolContext) => OpenClawNativeTool,
     options: { name: string }
   ) => void;
-  registerCli: Parameters<typeof registerOpenClawEnvironmentCli>[0]["registerCli"];
+  registerCli: Parameters<typeof registerOpenClawCli>[0]["registerCli"];
   on(
     hookName: "message_received",
     handler: (event: MessageReceivedEvent, context: MessageHookContext) => Promise<void> | void
@@ -297,7 +297,7 @@ const plugin = {
   name: "Quick Image",
   description: "安全处理当前 OpenClaw 会话附件，并将生成结果发送到可信消息路由。",
   register(api: OpenClawPluginApi) {
-    registerOpenClawEnvironmentCli(api);
+    registerOpenClawCli(api);
     const stateDirectory = resolveOpenClawAttachmentRegistryDirectory();
     const registry = new OpenClawAttachmentRegistry(stateDirectory);
     let pipelinePromise: Promise<AttachmentPipeline> | undefined;

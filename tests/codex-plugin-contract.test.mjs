@@ -57,9 +57,7 @@ describe("Codex plugin contract", () => {
     expect(runtimeArgs[3]).toBe("quick-image-local-mcp");
     expect(portableMcpConfig.mcpServers["quick-image-local"].args).toEqual(runtimeArgs);
     expect(packageJson.dependencies["quick-image-agent-runtime"]).toBe(runtimeArgs[2]);
-    expect(packageJson.bin["quick-image"]).toBe("./dist/cli/quick-image.js");
-    expect(packageJson.bin).not.toHaveProperty("quick-image-upload-bridge");
-    expect(packageJson.bin).not.toHaveProperty("quick-image-local-mcp");
+    expect(packageJson).not.toHaveProperty("bin");
   });
 
   it("writes a self-contained development overlay with a cache-busted MCP config", async () => {

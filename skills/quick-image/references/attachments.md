@@ -20,6 +20,6 @@
 
 ## 宿主故障处理
 
-- OpenClaw 找不到 `quick_image_list_attachments`，说明原生适配工具未安装、未启用或被当前工具策略过滤。立即停止附件流程，明确说明工具不可用，并提示用户运行 `quick-image-doctor --host openclaw`。
+- OpenClaw 找不到 `quick_image_list_attachments`，说明原生适配工具未安装、未启用或被当前工具策略过滤。立即停止附件流程，明确说明工具不可用，并提示用户使用 Plugin 固定的 Runtime Release tgz 运行 `npx --yes --package <Runtime Release tgz> quick-image-doctor --host openclaw`。
 - 限制型 `tools.profile` 需要用户将插件 ID `quick-image` 显式加入 `tools.alsoAllow`，不需要通用 `message` 工具。
 - Codex 本地附件工具不可发现或被拒绝时，停止并说明需要宿主提供工具审批；不得声称附件尚未生成或要求用户反复重发。

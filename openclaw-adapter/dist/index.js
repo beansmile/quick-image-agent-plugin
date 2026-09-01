@@ -1,5 +1,5 @@
 // src/openclaw-adapter/index.ts
-import path3 from "path";
+import path4 from "path";
 import {
   assertSupportedRuntime,
   AttachmentPipeline,
@@ -435,6 +435,14 @@ async function executeLocalTool(action) {
   }
 }
 
+// src/openclaw-adapter/environment-cli.ts
+import path3 from "path";
+import { spawnSync as spawnSync2 } from "child_process";
+import { fileURLToPath } from "url";
+
+// src/environment/openclaw-setup.ts
+import { createInterface } from "readline/promises";
+
 // src/environment/command-executor.ts
 import { spawnSync } from "child_process";
 var systemCommandExecutor = {
@@ -459,12 +467,6 @@ var QUICK_IMAGE_PRODUCTION_FRONTEND_URL = "https://quickimage.ai";
 var QUICK_IMAGE_FRONTEND_HEADER = "X-Quick-Image-Frontend-URL";
 var QUICK_IMAGE_VERSION_HEADER = "X-Quick-Image-Plugin-Version";
 var QUICK_IMAGE_OAUTH_SCOPE = "presets:read assets:write tasks:read tasks:write";
-function normalizeEnvironmentUrls(serverUrl, frontendUrl) {
-  return {
-    serverUrl: validateServerUrl(serverUrl),
-    frontendUrl: validateFrontendUrl(frontendUrl)
-  };
-}
 function productionEnvironmentUrls() {
   return {
     serverUrl: QUICK_IMAGE_PRODUCTION_SERVER_URL,
@@ -483,59 +485,11 @@ function buildOpenClawMcpConfig(urls, pluginVersion) {
     }
   };
 }
-function validateServerUrl(value) {
-  if (typeof value !== "string" || value.trim() === "") throw new Error("--server-url \u7F3A\u5C11 URL");
-  const url = parseUrl(value, "MCP URL");
-  const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
-  if (url.username || url.password || url.search || url.hash) {
-    throw new Error("MCP URL \u4E0D\u5F97\u5305\u542B\u51ED\u636E\u3001\u67E5\u8BE2\u53C2\u6570\u6216\u7247\u6BB5");
-  }
-  if (url.pathname !== "/mcp") throw new Error("MCP URL \u8DEF\u5F84\u5FC5\u987B\u662F /mcp");
-  if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {
-    throw new Error("MCP URL \u5FC5\u987B\u4F7F\u7528 HTTPS\uFF1B\u4EC5 loopback \u672C\u5730\u8C03\u8BD5\u5141\u8BB8 HTTP");
-  }
-  return url.toString().replace(/\/$/, "");
-}
-function validateFrontendUrl(value) {
-  if (typeof value !== "string" || value.trim() === "") throw new Error("--frontend-url \u7F3A\u5C11 URL");
-  const url = parseUrl(value, "\u524D\u7AEF URL");
-  const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
-  if (url.username || url.password || url.search || url.hash) {
-    throw new Error("\u524D\u7AEF URL \u4E0D\u5F97\u5305\u542B\u51ED\u636E\u3001\u67E5\u8BE2\u53C2\u6570\u6216\u7247\u6BB5");
-  }
-  if (url.pathname !== "/") throw new Error("\u524D\u7AEF URL \u53EA\u80FD\u914D\u7F6E origin\uFF0C\u4E0D\u5F97\u5305\u542B\u8DEF\u5F84");
-  if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {
-    throw new Error("\u524D\u7AEF URL \u5FC5\u987B\u4F7F\u7528 HTTPS\uFF1B\u4EC5 loopback \u672C\u5730\u8C03\u8BD5\u5141\u8BB8 HTTP");
-  }
-  return url.origin;
-}
-function parseUrl(value, label) {
-  try {
-    return new URL(value);
-  } catch {
-    throw new Error(`${label} \u65E0\u6548`);
-  }
-}
 
 // src/environment/executables.ts
 import { accessSync, constants } from "fs";
 import os from "os";
 import path2 from "path";
-function resolveCodexExecutable(explicitPath) {
-  const configured = explicitPath?.trim() || process.env.CODEX_CLI_PATH?.trim();
-  if (configured) return requireExecutable(configured, "\u6307\u5B9A\u7684 Codex CLI");
-  const pathMatch = findOnPath("codex");
-  if (pathMatch) return pathMatch;
-  if (process.platform === "darwin") {
-    for (const applicationName of ["ChatGPT.app", "Codex.app"]) {
-      for (const base of ["/Applications", path2.join(os.homedir(), "Applications")]) {
-        const candidate = path2.join(base, applicationName, "Contents", "Resources", "codex");
-        if (isExecutable(candidate)) return candidate;
-      }
-    }
-  }
-  throw new Error("\u627E\u4E0D\u5230 Codex CLI\uFF1B\u8BF7\u5C06 codex \u52A0\u5165 PATH\uFF0C\u6216\u4F7F\u7528 --codex-bin \u6307\u5B9A\u8DEF\u5F84");
-}
 function resolveOpenClawExecutable(explicitPath) {
   const configured = explicitPath?.trim() || process.env.OPENCLAW_CLI_PATH?.trim();
   if (configured) return requireExecutable(configured, "\u6307\u5B9A\u7684 OpenClaw CLI");
@@ -565,149 +519,7 @@ function isExecutable(filePath) {
   }
 }
 
-// src/environment/codex.ts
-async function readCodexEnvironmentStatus(options) {
-  const runtime = codexRuntime(options);
-  let output;
-  try {
-    output = runtime.executor.run(runtime.codexBin, ["mcp", "get", QUICK_IMAGE_MCP_NAME, "--json"]).stdout;
-  } catch {
-    return { host: "codex", configured: false, source: "missing" };
-  }
-  const config = parseCodexMcpOutput(JSON.parse(output));
-  const usesProduction = config.serverUrl === QUICK_IMAGE_PRODUCTION_SERVER_URL && config.frontendUrl === QUICK_IMAGE_PRODUCTION_FRONTEND_URL;
-  return {
-    host: "codex",
-    configured: true,
-    source: usesProduction ? "plugin-default" : "custom",
-    ...config,
-    authenticationCommand: "codex mcp login quick-image"
-  };
-}
-function codexRuntime(options) {
-  return {
-    codexBin: resolveCodexExecutable(options.codexBin),
-    executor: options.executor ?? systemCommandExecutor
-  };
-}
-function parseCodexMcpOutput(value) {
-  if (!isObject(value) || !isObject(value.transport)) throw new Error("Codex MCP \u72B6\u6001\u8F93\u51FA\u65E0\u6548");
-  const headers = isObject(value.transport.http_headers) ? value.transport.http_headers : {};
-  const serverUrl = value.transport.url;
-  const frontendUrl = headers[QUICK_IMAGE_FRONTEND_HEADER];
-  if (typeof serverUrl !== "string" || typeof frontendUrl !== "string") {
-    throw new Error("Codex Quick Image MCP \u7F3A\u5C11 Server URL \u6216 Frontend URL");
-  }
-  return { serverUrl, frontendUrl };
-}
-function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-// src/environment/openclaw.ts
-async function setOpenClawEnvironment(urls, options) {
-  const runtime = openClawRuntime(options);
-  const config = buildOpenClawMcpConfig(urls, options.pluginVersion);
-  runtime.executor.run(runtime.openClawBin, ["mcp", "set", QUICK_IMAGE_MCP_NAME, JSON.stringify(config)]);
-  runtime.executor.run(runtime.openClawBin, ["gateway", "restart"]);
-  return readOpenClawEnvironmentStatus(options);
-}
-async function resetOpenClawEnvironment(options) {
-  return setOpenClawEnvironment({
-    serverUrl: QUICK_IMAGE_PRODUCTION_SERVER_URL,
-    frontendUrl: QUICK_IMAGE_PRODUCTION_FRONTEND_URL
-  }, options);
-}
-async function readOpenClawEnvironmentStatus(options) {
-  const runtime = openClawRuntime(options);
-  let output;
-  try {
-    output = runtime.executor.run(
-      runtime.openClawBin,
-      ["config", "get", `mcp.servers.${QUICK_IMAGE_MCP_NAME}`, "--json"]
-    ).stdout;
-  } catch {
-    return { host: "openclaw", configured: false, source: "missing" };
-  }
-  const raw = JSON.parse(output);
-  const urls = parseOpenClawConfig(raw);
-  const usesProduction = urls.serverUrl === QUICK_IMAGE_PRODUCTION_SERVER_URL && urls.frontendUrl === QUICK_IMAGE_PRODUCTION_FRONTEND_URL;
-  return {
-    host: "openclaw",
-    configured: true,
-    source: usesProduction ? "production-default" : "custom",
-    ...urls,
-    authenticationCommand: "openclaw mcp login quick-image"
-  };
-}
-function openClawRuntime(options) {
-  return {
-    openClawBin: resolveOpenClawExecutable(options.openClawBin),
-    executor: options.executor ?? systemCommandExecutor
-  };
-}
-function parseOpenClawConfig(value) {
-  if (!isObject2(value)) throw new Error("OpenClaw MCP \u72B6\u6001\u8F93\u51FA\u65E0\u6548");
-  const headers = isObject2(value.headers) ? value.headers : {};
-  const serverUrl = value.url;
-  const frontendUrl = headers[QUICK_IMAGE_FRONTEND_HEADER];
-  if (typeof serverUrl !== "string" || typeof frontendUrl !== "string") {
-    throw new Error("OpenClaw Quick Image MCP \u7F3A\u5C11 Server URL \u6216 Frontend URL");
-  }
-  return { serverUrl, frontendUrl };
-}
-function isObject2(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-// src/environment/service.ts
-async function executeEnvironmentCommand(options) {
-  const hosts = options.host === "all" ? ["codex", "openclaw"] : [options.host];
-  if (options.action !== "status" && hosts.includes("codex")) {
-    throw new Error("Codex \u73AF\u5883\u7531 Plugin MCP \u6E05\u5355\u7BA1\u7406\uFF0Cenv set/reset \u4E0D\u4F1A\u4FEE\u6539 config.toml");
-  }
-  const urls = options.action === "set" ? normalizeEnvironmentUrls(options.serverUrl, options.frontendUrl) : void 0;
-  const results = [];
-  for (const host of hosts) {
-    if (host === "codex") {
-      const codexOptions = {
-        ...options.codexBin ? { codexBin: options.codexBin } : {}
-      };
-      results.push(await readCodexEnvironmentStatus(codexOptions));
-      continue;
-    }
-    const openClawOptions = {
-      pluginVersion: options.pluginVersion,
-      ...options.openClawBin ? { openClawBin: options.openClawBin } : {}
-    };
-    results.push(options.action === "set" ? await setOpenClawEnvironment(urls, openClawOptions) : options.action === "reset" ? await resetOpenClawEnvironment(openClawOptions) : await readOpenClawEnvironmentStatus(openClawOptions));
-  }
-  return results;
-}
-function formatEnvironmentResult(action, statuses) {
-  if (action === "status") return `${JSON.stringify({ hosts: statuses }, null, 2)}
-`;
-  const verb = action === "set" ? "\u5DF2\u66F4\u65B0" : "\u5DF2\u6062\u590D\u6B63\u5F0F\u9ED8\u8BA4\u914D\u7F6E";
-  const lines = [`Quick Image \u73AF\u5883 URL ${verb}\u3002`];
-  for (const status of statuses) {
-    lines.push(
-      `Host: ${status.host}`,
-      `Server: ${status.serverUrl ?? "\u672A\u914D\u7F6E"}`,
-      `Frontend: ${status.frontendUrl ?? "\u672A\u914D\u7F6E"}`
-    );
-    if (status.authenticationCommand) {
-      lines.push(`\u91CD\u65B0\u6388\u6743\uFF1A${status.authenticationCommand}`);
-    }
-  }
-  if (statuses.some((status) => status.host === "codex")) {
-    lines.push("Codex \u8BF7\u65B0\u5EFA\u4EFB\u52A1\u4EE5\u52A0\u8F7D\u6700\u65B0 MCP \u914D\u7F6E\u3002");
-  }
-  return `${lines.join("\n")}
-`;
-}
-
 // src/environment/openclaw-setup.ts
-import { createInterface } from "readline/promises";
 var OPENCLAW_PLUGIN_ID = "quick-image";
 var MANUAL_LOGIN_COMMAND = "openclaw mcp login quick-image";
 async function setupOpenClaw(options) {
@@ -758,7 +570,7 @@ async function configureProductionMcp(options) {
   const existing = servers[QUICK_IMAGE_MCP_NAME];
   let action = "created";
   if (existing !== void 0) {
-    if (!isObject3(existing) || existing.url !== QUICK_IMAGE_PRODUCTION_SERVER_URL) {
+    if (!isObject(existing) || existing.url !== QUICK_IMAGE_PRODUCTION_SERVER_URL) {
       const replace = options.prompt.interactive && await options.prompt.confirm(
         "\u68C0\u6D4B\u5230\u81EA\u5B9A\u4E49 Quick Image MCP \u914D\u7F6E\uFF0C\u662F\u5426\u66FF\u6362\u4E3A\u6B63\u5F0F\u73AF\u5883\uFF1F",
         false
@@ -776,10 +588,10 @@ async function configureProductionMcp(options) {
   ]);
   return action;
 }
-function readOptionalConfigObject(openClawBin, executor, path4) {
+function readOptionalConfigObject(openClawBin, executor, path5) {
   let output;
   try {
-    output = executor.run(openClawBin, ["config", "get", path4, "--json"]).stdout;
+    output = executor.run(openClawBin, ["config", "get", path5, "--json"]).stdout;
   } catch (error) {
     if (errorMessage(error).includes("Config path not found:")) return void 0;
     throw error;
@@ -788,9 +600,9 @@ function readOptionalConfigObject(openClawBin, executor, path4) {
   try {
     value = JSON.parse(output);
   } catch {
-    throw new Error(`OpenClaw ${path4} \u914D\u7F6E\u4E0D\u662F\u6709\u6548 JSON`);
+    throw new Error(`OpenClaw ${path5} \u914D\u7F6E\u4E0D\u662F\u6709\u6548 JSON`);
   }
-  if (!isObject3(value)) throw new Error(`OpenClaw ${path4} \u914D\u7F6E\u5FC5\u987B\u662F\u5BF9\u8C61`);
+  if (!isObject(value)) throw new Error(`OpenClaw ${path5} \u914D\u7F6E\u5FC5\u987B\u662F\u5BF9\u8C61`);
   return value;
 }
 function readStringArray(value, field) {
@@ -824,19 +636,21 @@ function terminalConfirmationPrompt() {
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
-function isObject3(value) {
+function isObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 // src/openclaw-adapter/environment-cli.ts
-function registerOpenClawEnvironmentCli(api) {
+function registerOpenClawCli(api) {
   api.registerCli(({ program }) => {
     const root = program.command("quick-image").description("\u7BA1\u7406 Quick Image \u63D2\u4EF6\u914D\u7F6E");
     root.command("setup").description("\u914D\u7F6E\u5DE5\u5177\u6743\u9650\u548C\u6B63\u5F0F\u73AF\u5883 MCP").action(() => runOpenClawSetup(api));
-    const environment = root.command("env").description("\u7BA1\u7406 Quick Image Server \u548C Frontend URL");
-    environment.command("set").description("\u8BBE\u7F6E Quick Image Server \u548C Frontend URL").requiredOption("--server-url <url>", "Quick Image MCP URL").requiredOption("--frontend-url <url>", "Quick Image \u524D\u7AEF origin").action((options) => runOpenClawAction(api, "set", options));
-    environment.command("status").description("\u663E\u793A\u5F53\u524D\u751F\u6548\u7684 Quick Image URL").action((options) => runOpenClawAction(api, "status", options));
-    environment.command("reset").description("\u6062\u590D Quick Image \u6B63\u5F0F\u9ED8\u8BA4 URL").action((options) => runOpenClawAction(api, "reset", options));
+    const env = root.command("env").description("\u7BA1\u7406 Quick Image \u73AF\u5883");
+    for (const action of ["set", "status", "reset"]) {
+      const command = env.command(action).description(`\u5207\u6362 Quick Image \u73AF\u5883\uFF08${action}\uFF09`);
+      command.option?.("--server-url <url>", "MCP Server URL").option?.("--frontend-url <url>", "Frontend URL");
+      command.action((options) => runRuntimeEnvironment(api, action, options));
+    }
   }, {
     descriptors: [{
       name: "quick-image",
@@ -845,21 +659,21 @@ function registerOpenClawEnvironmentCli(api) {
     }]
   });
 }
+async function runRuntimeEnvironment(api, action, options) {
+  if (!api.version) throw new Error("OpenClaw \u672A\u63D0\u4F9B Quick Image \u63D2\u4EF6\u7248\u672C");
+  const runtimeEntry = fileURLToPath(import.meta.resolve("quick-image-agent-runtime"));
+  const executable = path3.join(path3.dirname(runtimeEntry), "cli", "quick-image.js");
+  const args = [executable, "env", action, "--host", "openclaw"];
+  if (options.serverUrl) args.push("--server-url", options.serverUrl);
+  if (options.frontendUrl) args.push("--frontend-url", options.frontendUrl);
+  const result = spawnSync2(process.execPath, args, { encoding: "utf8", stdio: "inherit" });
+  if (result.error) throw new Error(`\u65E0\u6CD5\u542F\u52A8 quick-image-agent-runtime\uFF1A${result.error.message}`);
+  if (result.status !== 0) throw new Error(`quick-image-agent-runtime env ${action} \u6267\u884C\u5931\u8D25`);
+}
 async function runOpenClawSetup(api) {
   if (!api.version) throw new Error("OpenClaw \u672A\u63D0\u4F9B Quick Image \u63D2\u4EF6\u7248\u672C");
   const result = await setupOpenClaw({ pluginVersion: api.version });
   process.stdout.write(formatOpenClawSetupResult(result));
-}
-async function runOpenClawAction(api, action, options) {
-  if (!api.version) throw new Error("OpenClaw \u672A\u63D0\u4F9B Quick Image \u63D2\u4EF6\u7248\u672C");
-  const statuses = await executeEnvironmentCommand({
-    action,
-    host: "openclaw",
-    pluginVersion: api.version,
-    ...options.serverUrl ? { serverUrl: options.serverUrl } : {},
-    ...options.frontendUrl ? { frontendUrl: options.frontendUrl } : {}
-  });
-  process.stdout.write(formatEnvironmentResult(action, statuses));
 }
 
 // src/openclaw-adapter/index.ts
@@ -987,7 +801,7 @@ function enqueuePendingRegistration(pendingRegistrations, sessionKey, register) 
   return queued;
 }
 function parsePreviewParameters(value) {
-  if (!isObject4(value)) throw new Error("\u9884\u89C8\u53C2\u6570\u65E0\u6548\u3002");
+  if (!isObject2(value)) throw new Error("\u9884\u89C8\u53C2\u6570\u65E0\u6548\u3002");
   const displayUrl = parseHttpsUrl(value.display_url, "display_url");
   const downloadUrl = parseHttpsUrl(value.download_url, "download_url");
   if (value.media_kind !== "image" && value.media_kind !== "video") {
@@ -997,7 +811,7 @@ function parsePreviewParameters(value) {
 }
 function parseListParameters(value) {
   if (value === void 0 || value === null) return {};
-  if (!isObject4(value)) throw new Error("\u9644\u4EF6\u67E5\u8BE2\u53C2\u6570\u65E0\u6548\u3002");
+  if (!isObject2(value)) throw new Error("\u9644\u4EF6\u67E5\u8BE2\u53C2\u6570\u65E0\u6548\u3002");
   const result = {};
   if (value.message_id !== void 0) {
     if (typeof value.message_id !== "string" || value.message_id.length > 512) {
@@ -1050,7 +864,7 @@ function parseHttpsUrl(value, field) {
   }
   return url.toString();
 }
-function isObject4(value) {
+function isObject2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 var plugin = {
@@ -1058,14 +872,14 @@ var plugin = {
   name: "Quick Image",
   description: "\u5B89\u5168\u5904\u7406\u5F53\u524D OpenClaw \u4F1A\u8BDD\u9644\u4EF6\uFF0C\u5E76\u5C06\u751F\u6210\u7ED3\u679C\u53D1\u9001\u5230\u53EF\u4FE1\u6D88\u606F\u8DEF\u7531\u3002",
   register(api) {
-    registerOpenClawEnvironmentCli(api);
+    registerOpenClawCli(api);
     const stateDirectory = resolveOpenClawAttachmentRegistryDirectory();
     const registry = new OpenClawAttachmentRegistry(stateDirectory);
     let pipelinePromise;
     const getPipeline = () => {
       pipelinePromise ??= Promise.resolve().then(async () => {
         assertSupportedRuntime();
-        return AttachmentPipeline.create(path3.join(stateDirectory, "openclaw-attachment-pipeline"));
+        return AttachmentPipeline.create(path4.join(stateDirectory, "openclaw-attachment-pipeline"));
       });
       return pipelinePromise;
     };
