@@ -37,23 +37,30 @@ pnpm check
 - Server：`https://quickimage.ai/mcp`
 - Frontend：`https://quickimage.ai`
 
-Codex 的 Server 和 Frontend URL 由 Plugin MCP 清单提供：GitHub 安装使用仓库正式清单，本地调试安装使用隔离 Overlay 中的开发清单。Codex 环境切换不修改 `~/.codex/config.toml`。OpenClaw 仍可通过原生命令显式覆盖 URL：
+Plugin MCP 清单始终提供正式默认地址。本地调试安装通过隔离 Overlay 使用开发地址；维护者需要显式切换已安装宿主时，统一执行固定版本 `quick-image-agent-runtime` Release tgz 中的 `quick-image` CLI。地址只由命令调用者传入，不写入 Plugin 或 Runtime 源码：
 
 ```bash
-pnpm quick-image -- env set \
-  --host openclaw \
+npx --yes \
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime-<version>.tgz \
+  quick-image env set \
+  --host <codex|openclaw|all> \
   --server-url https://<server>/mcp \
   --frontend-url https://<frontend>
 ```
 
-查看 Codex 或全部宿主当前实际生效的配置：
+查看当前实际生效的配置或恢复正式默认配置时，使用同一个 Runtime Release tgz 和 npx 前缀：
 
 ```bash
-pnpm quick-image -- env status --host codex
-pnpm quick-image -- env status --host all
+npx --yes \
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime-<version>.tgz \
+  quick-image env status --host <codex|openclaw|all>
+
+npx --yes \
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime-<version>.tgz \
+  quick-image env reset --host <codex|openclaw|all>
 ```
 
-`env set/reset` 仅用于 OpenClaw；Codex 若需切换环境，应安装对应环境的 Plugin。Server 路径必须是 `/mcp`；远程地址必须使用 HTTPS，仅 loopback 本地调试允许 HTTP。修改 URL 后需按命令输出重新完成 OAuth。
+Runtime CLI 通过 `codex plugin list --json` 自动定位已安装的 Quick Image Plugin，并更新其 `.mcp.json` 和 `mcp.json`；`reset` 将其中的 Quick Image 地址恢复为正式默认值。OpenClaw CLI 使用宿主正式的 `mcp set` 与 Gateway 重启。Server 路径必须是 `/mcp`；远程地址必须使用 HTTPS，仅 loopback 本地调试允许 HTTP。修改 URL 后需按命令输出重新完成 OAuth，Codex 还需新建任务加载配置。
 
 ## Codex 本地调试
 
@@ -101,16 +108,29 @@ openclaw config set tools.alsoAllow '["quick-image"]' --strict-json
 pnpm dev:install:openclaw
 ```
 
-本地安装命令会构建源码，执行 `openclaw plugins install . --force` 并启用插件，然后通过插件自己的 `env set` 切换到本地 Server 和 Frontend。`env set` 内部负责 `mcp set` 和 `gateway restart`。安装命令不会修改 `tools.allow`、`tools.alsoAllow` 或 `tools.deny`。
+本地安装命令会构建源码，执行 `openclaw plugins install . --force` 并启用插件，然后调用 `openclaw quick-image env set` 切换到本地 Server 和 Frontend。该命令由 Plugin 转发给已安装的 `quick-image-agent-runtime` CLI，Runtime 内部负责 `mcp set` 和 `gateway restart`。安装命令不会修改 `tools.allow`、`tools.alsoAllow` 或 `tools.deny`。
 
-安装后可使用插件注册的 OpenClaw 原生命令管理 URL：
+安装后使用固定 Runtime Release tgz 管理 OpenClaw URL，Plugin 原生命令只保留正式安装所需的 `setup`：
 
 ```bash
-openclaw quick-image env set \
+npx --yes \
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime-<version>.tgz \
+  quick-image env set \
+  --host openclaw \
   --server-url https://<server>/mcp \
   --frontend-url https://<frontend>
-openclaw quick-image env status
-openclaw quick-image env reset
+```
+
+`status/reset` 使用相同的 Runtime Release tgz 和 npx 前缀：
+
+```bash
+npx --yes \
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime-<version>.tgz \
+  quick-image env status --host openclaw
+
+npx --yes \
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime-<version>.tgz \
+  quick-image env reset --host openclaw
 ```
 
 正式环境安装使用 `openclaw quick-image setup`。该命令合并 `tools.alsoAllow`、幂等登记正式环境 MCP，并在基础配置成功后执行 `gateway restart` 以加载配置。它不会在 setup 进程内启动 OAuth，而是在完成后输出登录命令；Agent 可以继续执行远程授权流程。setup 不会静默覆盖自定义 MCP 地址，非交互环境会保留自定义地址。
@@ -129,7 +149,7 @@ Agent 不以 owner 验证或会话类型作为远程授权前置条件，但必�
 
 OpenClaw 原生 manifest 不负责导入 MCP 配置。正式安装流程必须登记唯一的远程 MCP，完成登录后重启 Gateway 以加载配置和凭据。
 
-Doctor 是可选的安装验证与故障排查工具，不是插件启用前置条件。Quick Image 不注册会话内容 Hook 或 owner 专属 Trusted Tool Policy，也不在原生运行时额外限制私聊或群聊。共享 Skill 要求 Agent 根据当前会话上下文仅执行 owner 发出的 Quick Image 生成指令，但远程授权流程不以 owner 验证或会话类型作为前置条件，只负责提示 code 保密。这些都属于模型行为约束，不构成原生运行时安全边界。实际访问范围仍由 OpenClaw 自身的渠道访问策略和工具策略决定；Doctor 只检查 Quick Image 原生工具是否被当前工具策略开放。
+Runtime Release tgz 中的 Doctor 是可选安装验证与故障排查工具，不是插件启用前置条件。Quick Image 不注册会话内容 Hook 或 owner 专属 Trusted Tool Policy，也不在原生运行时额外限制私聊或群聊。共享 Skill 要求 Agent 根据当前会话上下文仅执行 owner 发出的 Quick Image 生成指令，但远程授权流程不以 owner 验证或会话类型作为前置条件，只负责提示 code 保密。这些都属于模型行为约束，不构成原生运行时安全边界。实际访问范围仍由 OpenClaw 自身的渠道访问策略和工具策略决定；Doctor 只检查 Quick Image 原生工具是否被当前工具策略开放。
 
 内置适配层使用 `message_received` 登记入站媒体，并通过 `quick_image_list_attachments` 返回不含路径的附件 ID。`quick_image_send_preview` 只向当前会话的可信路由发送 Quick Image 预览，不接受任意渠道、收件人或消息正文。通用 `message` 工具不属于 Quick Image 所需权限。
 
@@ -159,7 +179,7 @@ QUICK_IMAGE_UPLOAD_HOSTS=<official-upload-host>,*.<official-upload-host>
 
 ## 开发与发布校验
 
-发布新的 Runtime 后，用一个命令同步 Plugin 依赖和两份 MCP 清单中的 Runtime Release tgz。正式环境使用稳定版本；staging 可使用 `v0.2.0-rc.1` 这类 GitHub Prerelease：
+发布新的 Runtime 后，用一个命令同步 Plugin 依赖和两份 MCP 清单中的 Runtime Release tgz。环境 CLI 也必须使用同一个已审核的 Runtime Release tgz。正式环境使用稳定版本；staging 可使用 `v0.2.0-rc.1` 这类 GitHub Prerelease：
 
 ```bash
 pnpm runtime:set v<major>.<minor>.<patch>[-<prerelease>]

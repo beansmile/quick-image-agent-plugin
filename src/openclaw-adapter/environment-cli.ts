@@ -1,8 +1,6 @@
-import {
-  executeEnvironmentCommand,
-  formatEnvironmentResult,
-  type EnvironmentAction
-} from "../environment/service.js";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import {
   formatOpenClawSetupResult,
   setupOpenClaw
@@ -11,7 +9,7 @@ import {
 interface CommandLike {
   command(name: string): CommandLike;
   description(value: string): CommandLike;
-  requiredOption(flags: string, description: string): CommandLike;
+  option?(flags: string, description: string): CommandLike;
   action(handler: (options: Record<string, string | undefined>) => void | Promise<void>): CommandLike;
 }
 
@@ -25,24 +23,18 @@ interface OpenClawCliApi {
   ): void;
 }
 
-export function registerOpenClawEnvironmentCli(api: OpenClawCliApi): void {
+export function registerOpenClawCli(api: OpenClawCliApi): void {
   api.registerCli(({ program }) => {
     const root = program.command("quick-image").description("管理 Quick Image 插件配置");
     root.command("setup")
       .description("配置工具权限和正式环境 MCP")
       .action(() => runOpenClawSetup(api));
-    const environment = root.command("env").description("管理 Quick Image Server 和 Frontend URL");
-    environment.command("set")
-      .description("设置 Quick Image Server 和 Frontend URL")
-      .requiredOption("--server-url <url>", "Quick Image MCP URL")
-      .requiredOption("--frontend-url <url>", "Quick Image 前端 origin")
-      .action((options) => runOpenClawAction(api, "set", options));
-    environment.command("status")
-      .description("显示当前生效的 Quick Image URL")
-      .action((options) => runOpenClawAction(api, "status", options));
-    environment.command("reset")
-      .description("恢复 Quick Image 正式默认 URL")
-      .action((options) => runOpenClawAction(api, "reset", options));
+    const env = root.command("env").description("管理 Quick Image 环境");
+    for (const action of ["set", "status", "reset"] as const) {
+      const command = env.command(action).description(`切换 Quick Image 环境（${action}）`);
+      command.option?.("--server-url <url>", "MCP Server URL").option?.("--frontend-url <url>", "Frontend URL");
+      command.action((options) => runRuntimeEnvironment(api, action, options));
+    }
   }, {
     descriptors: [{
       name: "quick-image",
@@ -52,24 +44,25 @@ export function registerOpenClawEnvironmentCli(api: OpenClawCliApi): void {
   });
 }
 
+async function runRuntimeEnvironment(
+  api: OpenClawCliApi,
+  action: "set" | "status" | "reset",
+  options: Record<string, string | undefined>
+): Promise<void> {
+  if (!api.version) throw new Error("OpenClaw 未提供 Quick Image 插件版本");
+  // Runtime 仅公开主入口，不能通过 package.json 子路径定位其安装目录。
+  const runtimeEntry = fileURLToPath(import.meta.resolve("quick-image-agent-runtime"));
+  const executable = path.join(path.dirname(runtimeEntry), "cli", "quick-image.js");
+  const args = [executable, "env", action, "--host", "openclaw"];
+  if (options.serverUrl) args.push("--server-url", options.serverUrl);
+  if (options.frontendUrl) args.push("--frontend-url", options.frontendUrl);
+  const result = spawnSync(process.execPath, args, { encoding: "utf8", stdio: "inherit" });
+  if (result.error) throw new Error(`无法启动 quick-image-agent-runtime：${result.error.message}`);
+  if (result.status !== 0) throw new Error(`quick-image-agent-runtime env ${action} 执行失败`);
+}
+
 async function runOpenClawSetup(api: OpenClawCliApi): Promise<void> {
   if (!api.version) throw new Error("OpenClaw 未提供 Quick Image 插件版本");
   const result = await setupOpenClaw({ pluginVersion: api.version });
   process.stdout.write(formatOpenClawSetupResult(result));
-}
-
-async function runOpenClawAction(
-  api: OpenClawCliApi,
-  action: EnvironmentAction,
-  options: Record<string, string | undefined>
-): Promise<void> {
-  if (!api.version) throw new Error("OpenClaw 未提供 Quick Image 插件版本");
-  const statuses = await executeEnvironmentCommand({
-    action,
-    host: "openclaw",
-    pluginVersion: api.version,
-    ...(options.serverUrl ? { serverUrl: options.serverUrl } : {}),
-    ...(options.frontendUrl ? { frontendUrl: options.frontendUrl } : {})
-  });
-  process.stdout.write(formatEnvironmentResult(action, statuses));
 }
