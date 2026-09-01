@@ -119,8 +119,6 @@ if (packageJson.dependencies?.["quick-image-agent-runtime"] !== portableRuntime?
 }
 
 for (const required of [
-  "dist/cli/doctor.js",
-  "dist/cli/quick-image.js",
   ".agents/plugins/marketplace.json",
   "openclaw.plugin.json",
   "openclaw-adapter/dist/index.js",
@@ -130,11 +128,8 @@ for (const required of [
 ]) {
   if (!(await exists(required))) errors.push(`missing required release file: ${required}`);
 }
-if (packageJson.bin?.["quick-image"] !== "./dist/cli/quick-image.js") {
-  errors.push("package must expose the bundled quick-image environment CLI");
-}
-if (packageJson.bin?.["quick-image-upload-bridge"] || packageJson.bin?.["quick-image-local-mcp"]) {
-  errors.push("package must not expose the separately versioned local runtime");
+if (packageJson.bin !== undefined) {
+  errors.push("package must leave all CLI binaries to quick-image-agent-runtime");
 }
 
 const skill = await readFile(path.join(root, "skills/quick-image/SKILL.md"), "utf8");
@@ -188,6 +183,12 @@ for (const removedCompatibilityFile of [
   ".claude-plugin/plugin.json",
   "openclaw-adapter/package.json",
   "openclaw-adapter/openclaw.plugin.json",
+  "src/cli/quick-image.ts",
+  "src/cli/doctor.ts",
+  "src/cli/openclaw-policy.ts",
+  "src/environment/codex.ts",
+  "src/environment/openclaw.ts",
+  "src/environment/service.ts",
   "scripts/install-local-claude.mjs",
   "scripts/lib/claude-plugin-overlay.mjs"
 ]) {

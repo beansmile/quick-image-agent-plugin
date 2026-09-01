@@ -26,13 +26,14 @@ describe("OpenClaw plugin contract", () => {
     expect(pluginPackage.openclaw.extensions).toEqual(["./openclaw-adapter/dist/index.js"]);
   });
 
-  it("keeps the local installer focused on official install, enable, and environment commands", async () => {
+  it("uses the sibling Runtime CLI for local environment switching", async () => {
     const packageJson = await readJson(path.resolve("package.json"));
     const installer = packageJson.scripts["dev:install:openclaw"];
 
     expect(installer).toContain("openclaw plugins install . --force");
     expect(installer).toContain("openclaw plugins enable quick-image");
-    expect(installer).toContain("openclaw quick-image env set");
+    expect(installer).toContain("openclaw quick-image env set --server-url");
+    expect(installer).not.toContain("pnpm --dir ../quick-image-agent-runtime quick-image");
     expect(installer).not.toContain("plugins doctor");
     expect(installer).not.toContain("mcp login");
     expect(installer).not.toContain("install-local-openclaw.mjs");
