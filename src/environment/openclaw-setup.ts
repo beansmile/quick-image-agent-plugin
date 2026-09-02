@@ -1,72 +1,51 @@
-import { createInterface } from "node:readline/promises";
 import type { CommandExecutor } from "./command-executor.js";
 import { systemCommandExecutor } from "./command-executor.js";
 import {
   buildOpenClawMcpConfig,
   productionEnvironmentUrls,
-  QUICK_IMAGE_MCP_NAME,
-  QUICK_IMAGE_PRODUCTION_SERVER_URL
+  QUICK_IMAGE_MCP_NAME
 } from "./config.js";
 import { resolveOpenClawExecutable } from "./executables.js";
 
 const OPENCLAW_PLUGIN_ID = "quick-image";
 const MANUAL_LOGIN_COMMAND = "openclaw mcp login quick-image";
 
-export interface ConfirmationPrompt {
-  readonly interactive: boolean;
-  confirm(message: string, defaultValue: boolean): Promise<boolean>;
-}
-
-export type OpenClawSetupMcpAction = "created" | "updated" | "kept-custom";
-
 export interface OpenClawSetupResult {
   toolAccessChanged: boolean;
-  mcpAction: OpenClawSetupMcpAction;
 }
 
 interface OpenClawSetupOptions {
   pluginVersion: string;
   openClawBin?: string;
   executor?: CommandExecutor;
-  prompt?: ConfirmationPrompt;
 }
 
 export async function setupOpenClaw(options: OpenClawSetupOptions): Promise<OpenClawSetupResult> {
   const openClawBin = resolveOpenClawExecutable(options.openClawBin);
   const executor = options.executor ?? systemCommandExecutor;
-  const prompt = options.prompt ?? terminalConfirmationPrompt();
 
   const toolAccessChanged = ensureToolAccess(openClawBin, executor);
-  const mcpAction = await configureProductionMcp({
+  configureProductionMcp({
     openClawBin,
     executor,
-    prompt,
     pluginVersion: options.pluginVersion
   });
 
-  // 重启 Gateway 会重新读取 MCP 配置；OAuth 登录由用户按提示单独执行。
-  executor.run(openClawBin, ["gateway", "restart"]);
+  // 重新加载 MCP runtime，避免重启 Gateway 中断正在执行 setup 的会话。
+  executor.run(openClawBin, ["mcp", "reload"]);
 
-  return {
-    toolAccessChanged,
-    mcpAction
-  };
+  return { toolAccessChanged };
 }
 
 export function formatOpenClawSetupResult(result: OpenClawSetupResult): string {
   const toolAccess = result.toolAccessChanged
     ? "已将 quick-image 加入 tools.alsoAllow，并保留原有条目。"
     : "tools.alsoAllow 已包含 quick-image。";
-  const mcp = result.mcpAction === "created"
-    ? "已登记 Quick Image 正式环境 MCP。"
-    : result.mcpAction === "updated"
-      ? "已更新 Quick Image 正式环境 MCP。"
-      : "已保留现有的 Quick Image 自定义 MCP 配置。";
   return [
     "Quick Image OpenClaw 配置完成。",
     toolAccess,
-    mcp,
-    "已重启 Gateway 并加载 MCP 配置。",
+    "已设置 Quick Image 正式环境 MCP。",
+    "已重新加载 MCP 配置。",
     "请运行以下命令登录 Quick Image MCP：",
     MANUAL_LOGIN_COMMAND
   ].join("\n") + "\n";
@@ -88,27 +67,11 @@ function ensureToolAccess(openClawBin: string, executor: CommandExecutor): boole
   return true;
 }
 
-async function configureProductionMcp(options: {
+function configureProductionMcp(options: {
   openClawBin: string;
   executor: CommandExecutor;
-  prompt: ConfirmationPrompt;
   pluginVersion: string;
-}): Promise<OpenClawSetupMcpAction> {
-  const servers = readOptionalConfigObject(options.openClawBin, options.executor, "mcp.servers") ?? {};
-  const existing = servers[QUICK_IMAGE_MCP_NAME];
-  let action: OpenClawSetupMcpAction = "created";
-
-  if (existing !== undefined) {
-    if (!isObject(existing) || existing.url !== QUICK_IMAGE_PRODUCTION_SERVER_URL) {
-      const replace = options.prompt.interactive && await options.prompt.confirm(
-        "检测到自定义 Quick Image MCP 配置，是否替换为正式环境？",
-        false
-      );
-      if (!replace) return "kept-custom";
-    }
-    action = "updated";
-  }
-
+}): void {
   const config = buildOpenClawMcpConfig(productionEnvironmentUrls(), options.pluginVersion);
   options.executor.run(options.openClawBin, [
     "mcp",
@@ -116,7 +79,6 @@ async function configureProductionMcp(options: {
     QUICK_IMAGE_MCP_NAME,
     JSON.stringify(config)
   ]);
-  return action;
 }
 
 function readOptionalConfigObject(
@@ -152,25 +114,6 @@ function readStringArray(value: unknown, field: string): string[] {
 
 function arraysEqual(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-function terminalConfirmationPrompt(): ConfirmationPrompt {
-  const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
-  return {
-    interactive,
-    async confirm(message, defaultValue) {
-      if (!interactive) return defaultValue;
-      const readline = createInterface({ input: process.stdin, output: process.stdout });
-      try {
-        const suffix = defaultValue ? " [Y/n] " : " [y/N] ";
-        const answer = (await readline.question(message + suffix)).trim().toLowerCase();
-        if (answer === "") return defaultValue;
-        return answer === "y" || answer === "yes";
-      } finally {
-        readline.close();
-      }
-    }
-  };
 }
 
 function errorMessage(error: unknown): string {

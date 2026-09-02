@@ -440,9 +440,6 @@ import path3 from "path";
 import { spawnSync as spawnSync2 } from "child_process";
 import { fileURLToPath } from "url";
 
-// src/environment/openclaw-setup.ts
-import { createInterface } from "readline/promises";
-
 // src/environment/command-executor.ts
 import { spawnSync } from "child_process";
 var systemCommandExecutor = {
@@ -525,28 +522,22 @@ var MANUAL_LOGIN_COMMAND = "openclaw mcp login quick-image";
 async function setupOpenClaw(options) {
   const openClawBin = resolveOpenClawExecutable(options.openClawBin);
   const executor = options.executor ?? systemCommandExecutor;
-  const prompt = options.prompt ?? terminalConfirmationPrompt();
   const toolAccessChanged = ensureToolAccess(openClawBin, executor);
-  const mcpAction = await configureProductionMcp({
+  configureProductionMcp({
     openClawBin,
     executor,
-    prompt,
     pluginVersion: options.pluginVersion
   });
-  executor.run(openClawBin, ["gateway", "restart"]);
-  return {
-    toolAccessChanged,
-    mcpAction
-  };
+  executor.run(openClawBin, ["mcp", "reload"]);
+  return { toolAccessChanged };
 }
 function formatOpenClawSetupResult(result) {
   const toolAccess = result.toolAccessChanged ? "\u5DF2\u5C06 quick-image \u52A0\u5165 tools.alsoAllow\uFF0C\u5E76\u4FDD\u7559\u539F\u6709\u6761\u76EE\u3002" : "tools.alsoAllow \u5DF2\u5305\u542B quick-image\u3002";
-  const mcp = result.mcpAction === "created" ? "\u5DF2\u767B\u8BB0 Quick Image \u6B63\u5F0F\u73AF\u5883 MCP\u3002" : result.mcpAction === "updated" ? "\u5DF2\u66F4\u65B0 Quick Image \u6B63\u5F0F\u73AF\u5883 MCP\u3002" : "\u5DF2\u4FDD\u7559\u73B0\u6709\u7684 Quick Image \u81EA\u5B9A\u4E49 MCP \u914D\u7F6E\u3002";
   return [
     "Quick Image OpenClaw \u914D\u7F6E\u5B8C\u6210\u3002",
     toolAccess,
-    mcp,
-    "\u5DF2\u91CD\u542F Gateway \u5E76\u52A0\u8F7D MCP \u914D\u7F6E\u3002",
+    "\u5DF2\u8BBE\u7F6E Quick Image \u6B63\u5F0F\u73AF\u5883 MCP\u3002",
+    "\u5DF2\u91CD\u65B0\u52A0\u8F7D MCP \u914D\u7F6E\u3002",
     "\u8BF7\u8FD0\u884C\u4EE5\u4E0B\u547D\u4EE4\u767B\u5F55 Quick Image MCP\uFF1A",
     MANUAL_LOGIN_COMMAND
   ].join("\n") + "\n";
@@ -565,20 +556,7 @@ function ensureToolAccess(openClawBin, executor) {
   ]);
   return true;
 }
-async function configureProductionMcp(options) {
-  const servers = readOptionalConfigObject(options.openClawBin, options.executor, "mcp.servers") ?? {};
-  const existing = servers[QUICK_IMAGE_MCP_NAME];
-  let action = "created";
-  if (existing !== void 0) {
-    if (!isObject(existing) || existing.url !== QUICK_IMAGE_PRODUCTION_SERVER_URL) {
-      const replace = options.prompt.interactive && await options.prompt.confirm(
-        "\u68C0\u6D4B\u5230\u81EA\u5B9A\u4E49 Quick Image MCP \u914D\u7F6E\uFF0C\u662F\u5426\u66FF\u6362\u4E3A\u6B63\u5F0F\u73AF\u5883\uFF1F",
-        false
-      );
-      if (!replace) return "kept-custom";
-    }
-    action = "updated";
-  }
+function configureProductionMcp(options) {
   const config = buildOpenClawMcpConfig(productionEnvironmentUrls(), options.pluginVersion);
   options.executor.run(options.openClawBin, [
     "mcp",
@@ -586,7 +564,6 @@ async function configureProductionMcp(options) {
     QUICK_IMAGE_MCP_NAME,
     JSON.stringify(config)
   ]);
-  return action;
 }
 function readOptionalConfigObject(openClawBin, executor, path5) {
   let output;
@@ -614,24 +591,6 @@ function readStringArray(value, field) {
 }
 function arraysEqual(left, right) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-function terminalConfirmationPrompt() {
-  const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
-  return {
-    interactive,
-    async confirm(message, defaultValue) {
-      if (!interactive) return defaultValue;
-      const readline = createInterface({ input: process.stdin, output: process.stdout });
-      try {
-        const suffix = defaultValue ? " [Y/n] " : " [y/N] ";
-        const answer = (await readline.question(message + suffix)).trim().toLowerCase();
-        if (answer === "") return defaultValue;
-        return answer === "y" || answer === "yes";
-      } finally {
-        readline.close();
-      }
-    }
-  };
 }
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
