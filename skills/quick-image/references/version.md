@@ -32,6 +32,6 @@ openclaw plugins enable quick-image
 openclaw quick-image setup
 ```
 
-`setup` 负责保留已有配置、登记正式 MCP 并重启 Gateway。若命令不可用或失败，停止并提供上述命令供用户在运行 OpenClaw 的终端手动执行；不要改用通用 Shell、替代仓库或未经验证的 Runtime。
+`setup` 负责保留已有工具权限、使用正式环境配置覆盖同名 MCP，并重新加载 MCP 配置。若命令不可用或失败，停止并提供上述命令供用户在运行 OpenClaw 的终端手动执行；不要改用通用 Shell、替代仓库或未经验证的 Runtime。
 
 更新完成后，提醒用户在当前聊天发送 `/restart`（如 Gateway 尚未重新加载），再重试原请求。授权失效时仍须先征得用户同意，并按 [auth.md](auth.md) 执行登录。

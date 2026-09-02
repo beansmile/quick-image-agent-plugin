@@ -60,7 +60,7 @@ npx --yes \
   quick-image env reset --host <codex|openclaw|all>
 ```
 
-Runtime CLI 通过 `codex plugin list --json` 自动定位已安装的 Quick Image Plugin，并更新其 `.mcp.json` 和 `mcp.json`；`reset` 将其中的 Quick Image 地址恢复为正式默认值。OpenClaw CLI 使用宿主正式的 `mcp set` 与 Gateway 重启。Server 路径必须是 `/mcp`；远程地址必须使用 HTTPS，仅 loopback 本地调试允许 HTTP。修改 URL 后需按命令输出重新完成 OAuth，Codex 还需新建任务加载配置。
+Runtime CLI 通过 `codex plugin list --json` 自动定位已安装的 Quick Image Plugin，并更新其 `.mcp.json` 和 `mcp.json`；`reset` 将其中的 Quick Image 地址恢复为正式默认值。OpenClaw CLI 使用宿主正式的 `mcp set` 与 `mcp reload`。Server 路径必须是 `/mcp`；远程地址必须使用 HTTPS，仅 loopback 本地调试允许 HTTP。修改 URL 后需按命令输出重新完成 OAuth，Codex 还需新建任务加载配置。
 
 ## Codex 本地调试
 
@@ -108,7 +108,7 @@ openclaw config set tools.alsoAllow '["quick-image"]' --strict-json
 pnpm dev:install:openclaw
 ```
 
-本地安装命令会构建源码，执行 `openclaw plugins install . --force` 并启用插件，然后调用 `openclaw quick-image env set` 切换到本地 Server 和 Frontend。该命令由 Plugin 转发给已安装的 `quick-image-agent-runtime` CLI，Runtime 内部负责 `mcp set` 和 `gateway restart`。安装命令不会修改 `tools.allow`、`tools.alsoAllow` 或 `tools.deny`。
+本地安装命令会构建源码，执行 `openclaw plugins install . --force` 并启用插件，然后调用 `openclaw quick-image env set` 切换到本地 Server 和 Frontend。该命令由 Plugin 转发给已安装的 `quick-image-agent-runtime` CLI，Runtime 内部负责 `mcp set` 和 `mcp reload`。安装命令不会修改 `tools.allow`、`tools.alsoAllow` 或 `tools.deny`。
 
 安装后使用固定 Runtime Release tgz 管理 OpenClaw URL，Plugin 原生命令只保留正式安装所需的 `setup`：
 
@@ -133,7 +133,7 @@ npx --yes \
   quick-image env reset --host openclaw
 ```
 
-正式环境安装使用 `openclaw quick-image setup`。该命令合并 `tools.alsoAllow`、幂等登记正式环境 MCP，并在基础配置成功后执行 `gateway restart` 以加载配置。它不会在 setup 进程内启动 OAuth，而是在完成后输出登录命令；Agent 可以继续执行远程授权流程。setup 不会静默覆盖自定义 MCP 地址，非交互环境会保留自定义地址。
+正式环境安装使用 `openclaw quick-image setup`。该命令合并 `tools.alsoAllow`、使用正式环境配置覆盖同名 MCP，并在基础配置成功后执行 `mcp reload` 以加载配置，避免重启 Gateway 中断当前会话。它不会在 setup 进程内启动 OAuth，而是在完成后输出登录命令；Agent 可以继续执行远程授权流程。
 
 远程工具调用失败时，Agent 应先执行 `openclaw mcp doctor --probe quick-image --json` 做连接与 OAuth 探测。输出 `requires OAuth authorization`、`OAuth credentials are not authorized`、OAuth 原因的 `probe failed` 等信号时，应将其视为当前未登录/授权失效，即使业务工具尚未被调用；输出 DNS、超时、连接拒绝等明确网络错误时，按连接故障处理；没有 `quick-image` server 时，先重新安装或启用插件。Agent 确认未登录后，应先告知用户并询问是否需要登录；用户确认后，执行第一条命令并把授权链接发给用户，同时提醒用户不要泄露授权码或在非私聊会话中发送。用户在手机浏览器批准后，只把一次性授权码发回；Agent 校验其为单个安全 code 后，将其作为 `--code` 的单个参数执行第二条命令。Agent 登录成功后先回复结果，再让用户在聊天中发送 `/restart`，避免 Agent 自行重启 Gateway 导致当前回复中断。无法安全执行固定命令时，回退为用户手动执行：
 

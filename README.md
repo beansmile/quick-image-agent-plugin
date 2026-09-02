@@ -61,7 +61,7 @@ openclaw plugins enable quick-image
 openclaw quick-image setup
 ```
 
-`setup` 会在保留原有条目的前提下，将 `quick-image` 加入 `tools.alsoAllow`，登记正式环境 MCP，然后重启 Gateway 以加载配置。重复执行不会重复添加工具权限；检测到自定义 Quick Image MCP 地址时，只有确认后才会替换，非交互环境则保留已有的自定义 MCP 配置。
+`setup` 会在保留原有条目的前提下，将 `quick-image` 加入 `tools.alsoAllow`，使用正式环境配置覆盖同名 MCP，然后重新加载 MCP 配置。重复执行不会重复添加工具权限。
 
 #### 登录或重新登录 MCP
 
@@ -95,7 +95,7 @@ Doctor 不是安装或启用插件的必要步骤。首次安装后想集中检�
 
 ```bash
 npx --yes \
-  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.0/quick-image-agent-runtime-0.2.0.tgz \
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.2/quick-image-agent-runtime-0.2.2.tgz \
   quick-image-doctor --host openclaw
 ```
 
