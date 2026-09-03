@@ -95,7 +95,7 @@ Doctor 不是安装或启用插件的必要步骤。首次安装后想集中检�
 
 ```bash
 npx --yes --prefer-online \
-  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.2/quick-image-agent-runtime-0.2.2.tgz \
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.3/quick-image-agent-runtime.tgz \
   quick-image-doctor --host openclaw
 ```
 

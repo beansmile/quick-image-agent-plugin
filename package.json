@@ -36,7 +36,7 @@
     "validate": "node scripts/validate-package.mjs"
   },
   "dependencies": {
-    "quick-image-agent-runtime": "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.2/quick-image-agent-runtime-0.2.2.tgz",
+    "quick-image-agent-runtime": "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.3/quick-image-agent-runtime.tgz",
     "zod": "3.25.76"
   },
   "openclaw": {
