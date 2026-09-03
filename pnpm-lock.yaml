@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       quick-image-agent-runtime:
-        specifier: https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.2/quick-image-agent-runtime-0.2.2.tgz
-        version: https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.2/quick-image-agent-runtime-0.2.2.tgz(@types/node@24.3.0)
+        specifier: https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.3/quick-image-agent-runtime.tgz
+        version: https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.3/quick-image-agent-runtime.tgz(@types/node@24.3.0)
       zod:
         specifier: 3.25.76
         version: 3.25.76
@@ -1333,9 +1333,9 @@ packages:
     resolution: {integrity: sha512-O9gl3zCl5h5blw1KGUzQKhA5oUXSl8rwUIM5o0S3nCXMliSvy5Dzx7/DJcI+SwgICv+IneSZwhBh1oSyEHA71A==}
     engines: {node: '>=0.6'}
 
-  quick-image-agent-runtime@https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.2/quick-image-agent-runtime-0.2.2.tgz:
-    resolution: {tarball: https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.2/quick-image-agent-runtime-0.2.2.tgz}
-    version: 0.2.2
+  quick-image-agent-runtime@https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.3/quick-image-agent-runtime.tgz:
+    resolution: {tarball: https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.3/quick-image-agent-runtime.tgz}
+    version: 0.2.3
     engines: {node: '>=20'}
     hasBin: true
 
@@ -2693,7 +2693,7 @@ snapshots:
       es-define-property: 1.0.1
       side-channel: 1.1.1
 
-  quick-image-agent-runtime@https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.2/quick-image-agent-runtime-0.2.2.tgz(@types/node@24.3.0):
+  quick-image-agent-runtime@https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.3/quick-image-agent-runtime.tgz(@types/node@24.3.0):
     dependencies:
       '@modelcontextprotocol/sdk': 1.30.0(zod@3.25.76)
       ipaddr.js: 2.2.0
