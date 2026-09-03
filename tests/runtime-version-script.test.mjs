@@ -20,10 +20,9 @@ afterEach(async () => {
 describe("runtime:set", () => {
   it.each(["v1.2.3", "v1.2.3-rc.1"])("同步 Runtime %s 的 Release tgz", async (tag) => {
     const root = await createFixture();
-    const version = tag.slice(1);
     const expected =
       `https://github.com/beansmile/quick-image-agent-runtime/releases/download/${tag}/` +
-      `quick-image-agent-runtime-${version}.tgz`;
+      "quick-image-agent-runtime.tgz";
     expect(expected).toMatch(runtimePackagePattern);
 
     await execFileAsync(process.execPath, [script, tag], { cwd: root });

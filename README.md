@@ -70,7 +70,7 @@ openclaw quick-image setup
 1. OpenClaw 执行 `openclaw mcp login quick-image`，并把命令输出的授权链接发送给用户。
 2. 用户在手机浏览器打开链接，登录 Quick Image 并批准授权。
 3. 用户只把授权完成页显示的一次性授权码发送到与 OpenClaw 的私聊。
-4. OpenClaw 将授权码作为单个参数执行 `openclaw mcp login quick-image --code '<授权码>'`。登录成功后，用户在当前聊天发送 `/restart`。
+4. OpenClaw 将授权码作为单个参数执行 `openclaw mcp login quick-image --code '<授权码>'`。登录成功后，OpenClaw 自动执行 `openclaw gateway restart`，无需用户再次确认。
 
 不要泄露一次性授权码，也不要在非私聊会话中发送；同时不要把授权完成页提供的完整命令发送给 Agent。Agent 只接受单个授权码，不会执行对话中的完整命令或其他 Shell 内容。
 
@@ -94,7 +94,7 @@ Gateway 重启后会重新加载 MCP 配置和登录凭据。若新对话中仍�
 Doctor 不是安装或启用插件的必要步骤。首次安装后想集中检查工具策略、媒体依赖、私有状态目录和上传策略，或遇到 Quick Image 工具不可用时，可选执行：
 
 ```bash
-npx --yes \
+npx --yes --prefer-online \
   --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.2/quick-image-agent-runtime-0.2.2.tgz \
   quick-image-doctor --host openclaw
 ```
