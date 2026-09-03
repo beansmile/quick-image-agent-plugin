@@ -40,8 +40,8 @@ pnpm check
 Plugin MCP 清单始终提供正式默认地址。本地调试安装通过隔离 Overlay 使用开发地址；维护者需要显式切换已安装宿主时，统一执行固定版本 `quick-image-agent-runtime` Release tgz 中的 `quick-image` CLI。地址只由命令调用者传入，不写入 Plugin 或 Runtime 源码：
 
 ```bash
-npx --yes \
-  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime-<version>.tgz \
+npx --yes --prefer-online \
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime.tgz \
   quick-image env set \
   --host <codex|openclaw|all> \
   --server-url https://<server>/mcp \
@@ -51,12 +51,12 @@ npx --yes \
 查看当前实际生效的配置或恢复正式默认配置时，使用同一个 Runtime Release tgz 和 npx 前缀：
 
 ```bash
-npx --yes \
-  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime-<version>.tgz \
+npx --yes --prefer-online \
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime.tgz \
   quick-image env status --host <codex|openclaw|all>
 
-npx --yes \
-  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime-<version>.tgz \
+npx --yes --prefer-online \
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime.tgz \
   quick-image env reset --host <codex|openclaw|all>
 ```
 
@@ -113,8 +113,8 @@ pnpm dev:install:openclaw
 安装后使用固定 Runtime Release tgz 管理 OpenClaw URL，Plugin 原生命令只保留正式安装所需的 `setup`：
 
 ```bash
-npx --yes \
-  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime-<version>.tgz \
+npx --yes --prefer-online \
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime.tgz \
   quick-image env set \
   --host openclaw \
   --server-url https://<server>/mcp \
@@ -124,18 +124,18 @@ npx --yes \
 `status/reset` 使用相同的 Runtime Release tgz 和 npx 前缀：
 
 ```bash
-npx --yes \
-  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime-<version>.tgz \
+npx --yes --prefer-online \
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime.tgz \
   quick-image env status --host openclaw
 
-npx --yes \
-  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime-<version>.tgz \
+npx --yes --prefer-online \
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime.tgz \
   quick-image env reset --host openclaw
 ```
 
 正式环境安装使用 `openclaw quick-image setup`。该命令合并 `tools.alsoAllow`、使用正式环境配置覆盖同名 MCP，并在基础配置成功后执行 `mcp reload` 以加载配置，避免重启 Gateway 中断当前会话。它不会在 setup 进程内启动 OAuth，而是在完成后输出登录命令；Agent 可以继续执行远程授权流程。
 
-远程工具调用失败时，Agent 应先执行 `openclaw mcp doctor --probe quick-image --json` 做连接与 OAuth 探测。输出 `requires OAuth authorization`、`OAuth credentials are not authorized`、OAuth 原因的 `probe failed` 等信号时，应将其视为当前未登录/授权失效，即使业务工具尚未被调用；输出 DNS、超时、连接拒绝等明确网络错误时，按连接故障处理；没有 `quick-image` server 时，先重新安装或启用插件。Agent 确认未登录后，应先告知用户并询问是否需要登录；用户确认后，执行第一条命令并把授权链接发给用户，同时提醒用户不要泄露授权码或在非私聊会话中发送。用户在手机浏览器批准后，只把一次性授权码发回；Agent 校验其为单个安全 code 后，将其作为 `--code` 的单个参数执行第二条命令。Agent 登录成功后先回复结果，再让用户在聊天中发送 `/restart`，避免 Agent 自行重启 Gateway 导致当前回复中断。无法安全执行固定命令时，回退为用户手动执行：
+远程工具调用失败时，Agent 应先执行 `openclaw mcp doctor --probe quick-image --json` 做连接与 OAuth 探测。输出 `requires OAuth authorization`、`OAuth credentials are not authorized`、OAuth 原因的 `probe failed` 等信号时，应将其视为当前未登录/授权失效，即使业务工具尚未被调用；输出 DNS、超时、连接拒绝等明确网络错误时，按连接故障处理；没有 `quick-image` server 时，先重新安装或启用插件。Agent 确认未登录后，应先告知用户并询问是否需要登录；用户确认后，执行第一条命令并把授权链接发给用户，同时提醒用户不要泄露授权码或在非私聊会话中发送。用户在手机浏览器批准后，只把一次性授权码发回；Agent 校验其为单个安全 code 后，将其作为 `--code` 的单个参数执行第二条命令。登录成功后，Agent 无需再次确认，立即执行 `openclaw gateway restart` 使配置和凭据生效；该操作可能中断当前回复，Gateway 恢复后如会话仍可继续再报告结果。无法安全执行固定命令时，回退为用户手动执行：
 
 ```bash
 openclaw mcp login quick-image

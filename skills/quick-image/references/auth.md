@@ -78,7 +78,7 @@ openclaw mcp login quick-image
 openclaw mcp login quick-image --code '<code>'
 ```
 
-不要在回复、日志或后续消息中重复授权码，也不要读取或展示 Token。登录成功后先报告结果，再让用户在当前聊天发送 `/restart`；不要在当前 Agent turn 中执行 `openclaw gateway restart`，避免中断登录结果回复。重启后再重试原请求。
+不要在回复、日志或后续消息中重复授权码，也不要读取或展示 Token。登录成功后无需再次征得用户确认，立即执行固定命令 `openclaw gateway restart`，让 Gateway 重新加载 MCP 配置和登录凭据。重启可能中断当前回复，不得因此改为要求用户手动发送 `/restart`；Gateway 恢复后，如当前会话仍可继续，再报告登录和重启结果并重试原请求。
 
 如果第二条命令失败，不要重复展示授权码；根据新的错误重新执行第 1 节状态检查。
 
