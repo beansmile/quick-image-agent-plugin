@@ -3,7 +3,7 @@
 ## 远程 Quick Image MCP
 
 - `get_generation_config`：返回当前账号的 `user_id`、`screen_name`、`email`、实时积分余额，以及公开生成能力、模型 ID、展示名称、版本、参数约束、搭配与换姿各自排序在前的最多 20 个模板、积分价格、公开计费策略、媒体限制和确认阈值；模板包含公开 ID、名称、描述、价格和可用的预览地址，不返回内部 Prompt。配置报价只用于预估，带有 `estimation_contract_version`。账号信息和余额是实时字段，不应长期缓存。
-- `create_direct_upload`：根据最终文件元数据创建 Agent 素材并签发限定对象的直传信息。
+- `create_direct_upload`：根据最终文件元数据创建 Agent 素材；需要上传时签发限定对象的直传信息，已有同账号且经服务端验证的相同素材时返回复用结果。
 - `submit_lookbook_task`：只接受搭配出图参数和 UUID v4 幂等键，重新校验、计价、扣费并创建任务。
 - `submit_pose_task`：只接受换姿参数和 UUID v4 幂等键，重新校验、计价、扣费并创建任务。
 - `submit_upscale_task`：只接受高清参数和 UUID v4 幂等键，重新校验、计价、扣费并创建任务。
@@ -25,9 +25,9 @@
 - `estimate_pose_credits` / `quick_image_estimate_pose_credits({ estimation_contract_version, pricing, preset, preset_price_behavior, person_count, output_count_per_person, confirmation_thresholds })`：预估换姿积分；未选择预设时 `preset` 传 `null`。
 - `estimate_upscale_credits` / `quick_image_estimate_upscale_credits({ estimation_contract_version, pricing, input_count, confirmation_thresholds })`：预估高清积分。
 - `estimate_video_credits` / `quick_image_estimate_video_credits({ estimation_contract_version, pricing, output_duration_seconds, input_video_duration_seconds, confirmation_thresholds })`：预估视频积分；没有视频输入时 `input_video_duration_seconds` 传 `null`。
-- `upload_staged_attachment` / `quick_image_upload_staged_attachment({ staged_handle, direct_upload })`：分别是 Codex 本地 MCP 与 OpenClaw 原生入口，校验并 PUT 完全相同的暂存文件，成功后返回 `asset_id`。
+- `upload_staged_attachment` / `quick_image_upload_staged_attachment({ staged_handle, direct_upload })`：分别是 Codex 本地 MCP 与 OpenClaw 原生入口，校验暂存文件后按服务端结果执行 PUT，或跳过已验证素材的重复上传；成功后返回 `asset_id`。
 
-除 Codex 的 `inspect_attachment.path` 外，本地工具不接受本地路径；OpenClaw 只传原生适配层返回的 `attachment_id`。所有本地工具都不接受 Base64、Bearer Token 或单独的任意上传 URL。`direct_upload` 必须作为远程工具响应整体传递，包含 `asset_id`、`upload_url`、`headers`、`expires_at`。
+除 Codex 的 `inspect_attachment.path` 外，本地工具不接受本地路径；OpenClaw 只传原生适配层返回的 `attachment_id`。所有本地工具都不接受 Base64、Bearer Token 或单独的任意上传 URL。`direct_upload` 必须作为远程工具响应整体传递：`upload_required` 为 `false` 时包含 `asset_id`；需上传时还包含 `upload_url`、`headers` 和 `expires_at`。
 
 Codex 与 OpenClaw 的四个估价入口复用同一个本地计费核心，统一返回 `estimated_credits`、只读派生值 `estimated_output_count`、`calculation` 和 `confirmation_reasons`；它们不上传素材、不扣费、不锁价，也不替代服务端最终计价。`pricing` 必须是 `get_generation_config` 中当前能力和条件对应的完整价格项。搭配与换姿还应原样传入所选 `preset` 完整对象或 `null` 及模型的 `preset_price_behavior`，由工具确定图片价格来源。预设 `unit_credits` 必须存在：为 `null` 时使用模型价格；有数值时必须是正整数，否则拒绝预估。调用方不得自行选价、拼接或修改价格项。内部计费核心支持以下公开策略：
 

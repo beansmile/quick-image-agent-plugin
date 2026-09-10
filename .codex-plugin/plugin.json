@@ -1,6 +1,6 @@
 {
   "name": "quick-image",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "安全检查和上传对话附件，并使用 Quick Image 生成图片或视频。",
   "author": { "name": "Minded One, LLC", "url": "https://quickimage.ai" },
   "homepage": "https://quickimage.ai",

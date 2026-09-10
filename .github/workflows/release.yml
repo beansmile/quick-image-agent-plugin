@@ -1,4 +1,4 @@
-name: Release runtime package
+name: Release plugin package
 
 on:
   push:
@@ -39,8 +39,13 @@ jobs:
         run: |
           mkdir release
           npm pack --pack-destination release
-          cd release
-          sha256sum *.tgz > SHA256SUMS
+          (
+            cd release
+            versioned_archive="$(find . -maxdepth 1 -type f -name 'quick-image-agent-plugin-*.tgz' -print -quit)"
+            test -n "$versioned_archive"
+            cp "$versioned_archive" quick-image-agent-plugin.tgz
+            sha256sum "$versioned_archive" quick-image-agent-plugin.tgz > SHA256SUMS
+          )
 
       - name: Create GitHub Release
         env:
