@@ -1,6 +1,6 @@
 {
   "name": "quick-image-agent-plugin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Quick Image Agent Plugin for supported AI agent hosts",
   "type": "module",
@@ -36,7 +36,7 @@
     "validate": "node scripts/validate-package.mjs"
   },
   "dependencies": {
-    "quick-image-agent-runtime": "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.3/quick-image-agent-runtime.tgz",
+    "quick-image-agent-runtime": "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.4/quick-image-agent-runtime.tgz",
     "zod": "3.25.76"
   },
   "openclaw": {
