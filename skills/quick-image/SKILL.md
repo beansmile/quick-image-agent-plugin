@@ -1,6 +1,6 @@
 ---
 name: quick-image
-description: 使用 Quick Image 对当前对话附件执行搭配出图、换姿、高清或视频生成。用户要求基于图片、视频或音频生成内容、查询 Quick Image 任务或查看生成结果时使用；必须先读取公开配置并本地预估报价，确认后再执行安全附件上传、幂等提交和限速轮询流程。
+description: 使用 Quick Image 对当前对话附件执行搭配出图、换姿、高清或视频生成，或检查和更新 Quick Image Agent Plugin。用户要求基于图片、视频或音频生成内容、查询 Quick Image 任务、查看生成结果或询问 Plugin 更新时使用；生成任务必须先读取公开配置并本地预估报价，确认后再执行安全附件上传、幂等提交和限速轮询流程。
 ---
 
 # Quick Image 生成
@@ -27,16 +27,13 @@ description: 使用 Quick Image 对当前对话附件执行搭配出图、换姿
 
 ## 版本升级
 
-调用 Quick Image MCP 工具失败并返回错误码 `upgrade_required` 时，说明当前 Plugin 或本地桥低于服务端要求的最低版本。立即停止报价、准备、上传和提交，不得通过更换幂等键、Runtime、MCP 地址或 OAuth 配置绕过版本检查。
-
-1. 向用户说明版本过低，并先征得用户同意再执行升级。
-2. 读取 [version.md](references/version.md)，只执行当前宿主列出的固定升级命令。
+用户询问是否有新版本、明确请求更新 Plugin，或 MCP 工具返回 `upgrade_required` 时，读取 [version.md](references/version.md) 并按其中流程处理。发生 `upgrade_required` 时，完成更新前停止当前生成流程。
 
 ## 按阶段读取规则
 
 只在进入对应阶段时读取 reference，避免把全部能力规则常驻在上下文中：
 
-1. 开始时先按宿主工具发现能力查找 Quick Image 远程工具和本地工具。远程工具包括 `get_generation_config`、`create_direct_upload`、`submit_lookbook_task`、`submit_pose_task`、`submit_upscale_task`、`submit_video_task`、`list_generation_tasks` 和 `get_generation_tasks`；Codex 本地工具包括 `inspect_attachment`、`prepare_attachment`、`estimate_lookbook_credits`、`estimate_pose_credits`、`estimate_upscale_credits`、`estimate_video_credits` 和 `upload_staged_attachment`；OpenClaw 原生工具包括 `quick_image_list_attachments`、`quick_image_inspect_attachment`、`quick_image_prepare_attachment`、`quick_image_estimate_lookbook_credits`、`quick_image_estimate_pose_credits`、`quick_image_estimate_upscale_credits`、`quick_image_estimate_video_credits`、`quick_image_upload_staged_attachment` 和 `quick_image_send_preview`。
+1. 开始时先按宿主工具发现能力查找 Quick Image 远程工具和本地工具。远程工具包括 `get_agent_plugin_installation_plan`、`get_generation_config`、`create_direct_upload`、`submit_lookbook_task`、`submit_pose_task`、`submit_upscale_task`、`submit_video_task`、`list_generation_tasks` 和 `get_generation_tasks`；Codex 本地工具包括 `inspect_attachment`、`prepare_attachment`、`estimate_lookbook_credits`、`estimate_pose_credits`、`estimate_upscale_credits`、`estimate_video_credits` 和 `upload_staged_attachment`；OpenClaw 原生工具包括 `quick_image_list_attachments`、`quick_image_inspect_attachment`、`quick_image_prepare_attachment`、`quick_image_estimate_lookbook_credits`、`quick_image_estimate_pose_credits`、`quick_image_estimate_upscale_credits`、`quick_image_estimate_video_credits`、`quick_image_upload_staged_attachment` 和 `quick_image_send_preview`。
 2. 发现工具后调用 `get_generation_config`。确定能力、模型、参数、模板、附件角色和动态限制前，读取 [parameters.md](references/parameters.md)。不要使用记忆中的旧配置或固定限制。
 3. 任务需要附件时，读取 [attachments.md](references/attachments.md)，再选择并检查附件并保留一次性 `attachment_handle`。检查阶段不得准备、上传或创建直传信息。
 4. 需要报价、等待用户确认、确认后上传或提交任务时，读取 [submission.md](references/submission.md)。只调用与当前能力对应的估价和提交工具；本地预估完成并取得用户确认后才执行上传，余额不足时立即停止。

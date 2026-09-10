@@ -2,6 +2,7 @@
 
 ## 远程 Quick Image MCP
 
+- `get_agent_plugin_installation_plan()`：检查 Quick Image Agent Plugin 是否有新版本，返回 `update_available`、`latest_version` 和可用于更新或重装的中文 `prompt`。
 - `get_generation_config`：返回当前账号的 `user_id`、`screen_name`、`email`、实时积分余额，以及公开生成能力、模型 ID、展示名称、版本、参数约束、搭配与换姿各自排序在前的最多 20 个模板、积分价格、公开计费策略、媒体限制和确认阈值；模板包含公开 ID、名称、描述、价格和可用的预览地址，不返回内部 Prompt。配置报价只用于预估，带有 `estimation_contract_version`。账号信息和余额是实时字段，不应长期缓存。
 - `create_direct_upload`：根据最终文件元数据创建 Agent 素材；需要上传时签发限定对象的直传信息，已有同账号且经服务端验证的相同素材时返回复用结果。
 - `submit_lookbook_task`：只接受搭配出图参数和 UUID v4 幂等键，重新校验、计价、扣费并创建任务。
