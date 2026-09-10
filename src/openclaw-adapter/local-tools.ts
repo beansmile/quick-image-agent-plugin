@@ -138,7 +138,7 @@ function createUploadTool(
   return {
     name: "quick_image_upload_staged_attachment",
     label: "上传 Quick Image 暂存附件",
-    description: "使用远程 Quick Image MCP 签发的完整直传信息上传当前会话中完全相同的暂存文件，成功后消费句柄。",
+    description: "使用远程 Quick Image MCP 返回的完整信息上传暂存文件，或复用已验证素材；成功后消费句柄。",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -148,15 +148,29 @@ function createUploadTool(
           pattern: "^qis_[A-Za-z0-9_-]{43}$"
         },
         direct_upload: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            asset_id: { type: "string", minLength: 1, maxLength: 200 },
-            upload_url: { type: "string", format: "uri", maxLength: 8192 },
-            headers: { type: "object", additionalProperties: { type: "string" } },
-            expires_at: { type: "string", format: "date-time" }
-          },
-          required: ["asset_id", "upload_url", "headers", "expires_at"]
+          oneOf: [
+            {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                asset_id: { type: "string", minLength: 1, maxLength: 200 },
+                upload_required: { const: false }
+              },
+              required: ["asset_id", "upload_required"]
+            },
+            {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                asset_id: { type: "string", minLength: 1, maxLength: 200 },
+                upload_required: { const: true },
+                upload_url: { type: "string", format: "uri", maxLength: 8192 },
+                headers: { type: "object", additionalProperties: { type: "string" } },
+                expires_at: { type: "string", format: "date-time" }
+              },
+              required: ["asset_id", "upload_url", "headers", "expires_at"]
+            }
+          ]
         }
       },
       required: ["staged_handle", "direct_upload"]

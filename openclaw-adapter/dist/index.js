@@ -300,7 +300,7 @@ function createUploadTool(pipelineProvider, context) {
   return {
     name: "quick_image_upload_staged_attachment",
     label: "\u4E0A\u4F20 Quick Image \u6682\u5B58\u9644\u4EF6",
-    description: "\u4F7F\u7528\u8FDC\u7A0B Quick Image MCP \u7B7E\u53D1\u7684\u5B8C\u6574\u76F4\u4F20\u4FE1\u606F\u4E0A\u4F20\u5F53\u524D\u4F1A\u8BDD\u4E2D\u5B8C\u5168\u76F8\u540C\u7684\u6682\u5B58\u6587\u4EF6\uFF0C\u6210\u529F\u540E\u6D88\u8D39\u53E5\u67C4\u3002",
+    description: "\u4F7F\u7528\u8FDC\u7A0B Quick Image MCP \u8FD4\u56DE\u7684\u5B8C\u6574\u4FE1\u606F\u4E0A\u4F20\u6682\u5B58\u6587\u4EF6\uFF0C\u6216\u590D\u7528\u5DF2\u9A8C\u8BC1\u7D20\u6750\uFF1B\u6210\u529F\u540E\u6D88\u8D39\u53E5\u67C4\u3002",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -310,15 +310,29 @@ function createUploadTool(pipelineProvider, context) {
           pattern: "^qis_[A-Za-z0-9_-]{43}$"
         },
         direct_upload: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            asset_id: { type: "string", minLength: 1, maxLength: 200 },
-            upload_url: { type: "string", format: "uri", maxLength: 8192 },
-            headers: { type: "object", additionalProperties: { type: "string" } },
-            expires_at: { type: "string", format: "date-time" }
-          },
-          required: ["asset_id", "upload_url", "headers", "expires_at"]
+          oneOf: [
+            {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                asset_id: { type: "string", minLength: 1, maxLength: 200 },
+                upload_required: { const: false }
+              },
+              required: ["asset_id", "upload_required"]
+            },
+            {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                asset_id: { type: "string", minLength: 1, maxLength: 200 },
+                upload_required: { const: true },
+                upload_url: { type: "string", format: "uri", maxLength: 8192 },
+                headers: { type: "object", additionalProperties: { type: "string" } },
+                expires_at: { type: "string", format: "date-time" }
+              },
+              required: ["asset_id", "upload_url", "headers", "expires_at"]
+            }
+          ]
         }
       },
       required: ["staged_handle", "direct_upload"]
