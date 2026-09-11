@@ -5,7 +5,7 @@
 1. 先读取 `get_generation_config`，再形成一份用于报价、确认和提交的完整业务参数。
 2. 用户明确指定的合法值覆盖配置默认值；有默认值的可选参数不询问用户，但影响输出或价格时必须在完整业务参数中显式保留。
 3. 只询问必填且没有默认值的信息。无关字段、未选择的互斥字段、空字符串和空数组不得传入。
-4. `asset_id` 只能来自当前对话附件上传结果或当前对话已有的 Quick Image 结果；模板 ID 只能来自本次 `get_generation_config` 返回值。附件角色必须来自用户表述，不根据附件顺序或画面内容猜测。
+4. `asset_id` 可以来自当前会话附件上传结果、当前会话已有的 Quick Image 结果，或用户明确提供的已知 Quick Image 素材；最终是否属于当前账号且可用于当前能力由服务端校验。模板 ID 只能来自本次 `get_generation_config` 返回值。附件角色必须来自用户表述，不根据附件顺序或画面内容猜测。
 5. 四个能力专用估价工具只负责确定性计费，不负责补默认值或选择 Prompt 来源；调用前必须完成业务参数解析。
 6. 能力由所选提交工具确定，arguments 中不传 `capability`。报价返回的 `estimated_output_count` 是派生展示值，不得作为提交字段。
 
@@ -156,4 +156,4 @@ Prompt 来源选择：
 | 高清 | `estimate_upscale_credits` | `quick_image_estimate_upscale_credits` | `pricing`、`input_count` |
 | 视频 | `estimate_video_credits` | `quick_image_estimate_video_credits` | `pricing`、`output_duration_seconds`、`input_video_duration_seconds` |
 
-四个工具都必须接收当前配置的 `estimation_contract_version` 和完整 `confirmation_thresholds`。搭配、换姿未选择预设时 `preset` 传 `null`；视频没有输入视频时 `input_video_duration_seconds` 传 `null`。不得跨能力调用、传 `capability`、自行选择图片价格来源、拼接价格字段、改变费率或由模型重复计算结果。
+四个工具都必须接收当前配置的 `estimation_contract_version` 和完整 `confirmation_thresholds`。搭配、换姿未选择预设时 `preset` 传 `null`；视频没有输入视频时 `input_video_duration_seconds` 传 `null`。每个估价工具只估算当前能力，不传 `capability`、不自行选择图片价格来源、拼接价格字段、改变费率或由模型重复计算结果。用户明确要求跨能力连续处理时，每项能力分别读取配置并估价。Quick Image 不提供云端图库浏览；这不限制宿主或 AI 根据用户意图搜索本地目录，也不限制用户直接提供已知的 `asset_id`。

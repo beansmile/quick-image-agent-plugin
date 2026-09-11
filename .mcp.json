@@ -20,12 +20,7 @@
         "--package",
         "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.4/quick-image-agent-runtime.tgz",
         "quick-image-local-mcp"
-      ],
-      "tools": {
-        "inspect_attachment": {
-          "approval_mode": "prompt"
-        }
-      }
+      ]
     }
   }
 }

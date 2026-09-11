@@ -210,8 +210,12 @@ var OPENCLAW_LOCAL_TOOL_NAMES = [
   "quick_image_upload_staged_attachment"
 ];
 var inspectInputSchema = z.object({
-  attachment_id: z.string().regex(/^qio_[A-Za-z0-9_-]{43}$/)
-}).strict();
+  attachment_id: z.string().regex(/^qio_[A-Za-z0-9_-]{43}$/).optional(),
+  path: z.string().min(1).optional()
+}).strict().refine(
+  ({ attachment_id, path: path5 }) => Boolean(attachment_id) !== Boolean(path5),
+  "attachment_id \u548C path \u5FC5\u987B\u4E8C\u9009\u4E00"
+);
 var prepareInputSchema = z.object({
   attachment_handle: z.string().regex(/^qia_[A-Za-z0-9_-]{43}$/)
 }).strict();
@@ -240,7 +244,7 @@ function createInspectTool(registry, pipelineProvider, context) {
   return {
     name: "quick_image_inspect_attachment",
     label: "\u68C0\u67E5 Quick Image \u9644\u4EF6",
-    description: "\u68C0\u67E5\u5F53\u524D OpenClaw \u4F1A\u8BDD\u4E2D\u7684\u9644\u4EF6\u5E76\u8FD4\u56DE\u4E0D\u5305\u542B\u672C\u5730\u8DEF\u5F84\u6216\u9644\u4EF6\u5B57\u8282\u7684\u4E00\u6B21\u6027\u53E5\u67C4\u3002\u6B64\u6B65\u9AA4\u4E0D\u5904\u7406\u3001\u4E0D\u6682\u5B58\u3001\u4E0D\u4E0A\u4F20\u9644\u4EF6\u3002",
+    description: "\u68C0\u67E5\u5F53\u524D OpenClaw \u4F1A\u8BDD\u9644\u4EF6\uFF0C\u6216\u68C0\u67E5\u5BBF\u4E3B\u6216 AI \u6839\u636E\u7528\u6237\u610F\u56FE\u63D0\u4F9B\u7684\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\u6216\u5A92\u4F53\u5F15\u7528\uFF0C\u8FD4\u56DE\u4E0D\u5305\u542B\u672C\u5730\u8DEF\u5F84\u6216\u9644\u4EF6\u5B57\u8282\u7684\u4E00\u6B21\u6027\u53E5\u67C4\u3002\u6B64\u6B65\u9AA4\u4E0D\u5904\u7406\u3001\u4E0D\u6682\u5B58\u3001\u4E0D\u4E0A\u4F20\u9644\u4EF6\u3002",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -248,18 +252,26 @@ function createInspectTool(registry, pipelineProvider, context) {
         attachment_id: {
           type: "string",
           pattern: "^qio_[A-Za-z0-9_-]{43}$",
-          description: "quick_image_list_attachments \u8FD4\u56DE\u7684\u5F53\u524D\u4F1A\u8BDD\u9644\u4EF6 ID\u3002"
+          description: "quick_image_list_attachments \u8FD4\u56DE\u7684\u5F53\u524D\u4F1A\u8BDD\u9644\u4EF6 ID\uFF1B\u4E0E path \u4E8C\u9009\u4E00\u3002"
+        },
+        path: {
+          type: "string",
+          minLength: 1,
+          description: "\u5BBF\u4E3B\u6216 AI \u6839\u636E\u7528\u6237\u610F\u56FE\u63D0\u4F9B\u7684\u672C\u5730\u6587\u4EF6\u7EDD\u5BF9\u8DEF\u5F84\u6216 Runtime \u652F\u6301\u7684\u5A92\u4F53\u5F15\u7528\uFF1B\u4E0E attachment_id \u4E8C\u9009\u4E00\u3002"
         }
       },
-      required: ["attachment_id"]
+      oneOf: [
+        { required: ["attachment_id"] },
+        { required: ["path"] }
+      ]
     },
     annotations: readOnlyAnnotations,
     async execute(_toolCallId, rawParameters) {
       return executeLocalTool(async () => {
         const parameters = inspectInputSchema.parse(rawParameters);
         const sessionKey = requireSessionKey(context);
-        const attachment = await registry.resolveForSession(parameters.attachment_id, sessionKey);
-        return (await pipelineProvider()).inspect(attachment.source_reference, sessionKey);
+        const sourceReference = parameters.path ?? (await registry.resolveForSession(parameters.attachment_id, sessionKey)).source_reference;
+        return (await pipelineProvider()).inspect(sourceReference, sessionKey);
       });
     }
   };

@@ -50,7 +50,7 @@ describe("Codex plugin contract", () => {
       .toBe(packageJson.version);
     expect(mcpConfig.mcpServers["quick-image"].http_headers?.["X-Quick-Image-Frontend-URL"])
       .toBe("https://quickimage.ai");
-    expect(mcpConfig.mcpServers["quick-image-local"].tools.inspect_attachment.approval_mode).toBe("prompt");
+    expect(mcpConfig.mcpServers["quick-image-local"]).not.toHaveProperty("tools");
     const runtimeArgs = mcpConfig.mcpServers["quick-image-local"].args;
     expect(runtimeArgs.slice(0, 2)).toEqual(["--yes", "--package"]);
     expect(runtimeArgs[2]).toMatch(runtimePackagePattern);
@@ -88,8 +88,7 @@ describe("Codex plugin contract", () => {
     });
     expect(mcpConfig.mcpServers["quick-image-local"]).toEqual({
       command: "npx",
-      args: ["--yes", "--package", "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.1.0/quick-image-agent-runtime-0.1.0.tgz", "quick-image-local-mcp"],
-      tools: { inspect_attachment: { approval_mode: "prompt" } }
+      args: ["--yes", "--package", "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.1.0/quick-image-agent-runtime-0.1.0.tgz", "quick-image-local-mcp"]
     });
   });
 });
@@ -121,8 +120,7 @@ async function createPluginFixture() {
       },
       "quick-image-local": {
         command: "npx",
-        args: ["--yes", "--package", "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.1.0/quick-image-agent-runtime-0.1.0.tgz", "quick-image-local-mcp"],
-        tools: { inspect_attachment: { approval_mode: "prompt" } }
+        args: ["--yes", "--package", "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.1.0/quick-image-agent-runtime-0.1.0.tgz", "quick-image-local-mcp"]
       }
     }
   }));

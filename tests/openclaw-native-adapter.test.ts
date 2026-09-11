@@ -322,6 +322,63 @@ describe("OpenClaw native preview adapter", () => {
     expect(result?.content[0]?.text).not.toContain("/private/openclaw");
   });
 
+  it("passes a host-resolved local path into the shared attachment pipeline", async () => {
+    const pipeline = createPipelineFixture();
+    const tools = createOpenClawLocalTools(
+      new OpenClawAttachmentRegistry("/unused"),
+      async () => pipeline,
+      { sessionKey: "session-1" }
+    );
+    const inspect = tools.find((tool) => tool.name === "quick_image_inspect_attachment");
+
+    const result = await inspect?.execute("call-1", { path: "/tmp/quick-image-test/input.png" });
+
+    expect(pipeline.inspect).toHaveBeenCalledWith("/tmp/quick-image-test/input.png", "session-1");
+    expect(result?.content[0]?.text).toContain('"attachment_handle":"qia_');
+  });
+
+  it("passes media references through the direct path input", async () => {
+    const pipeline = createPipelineFixture();
+    const tools = createOpenClawLocalTools(
+      new OpenClawAttachmentRegistry("/unused"),
+      async () => pipeline,
+      { sessionKey: "session-1" }
+    );
+    const inspect = tools.find((tool) => tool.name === "quick_image_inspect_attachment");
+
+    const result = await inspect?.execute("call-1", { path: "media://inbound/other-session.png" });
+
+    expect(result?.isError).not.toBe(true);
+    expect(pipeline.inspect).toHaveBeenCalledWith("media://inbound/other-session.png", "session-1");
+  });
+
+  it("requires exactly one attachment source", async () => {
+    const pipeline = createPipelineFixture();
+    const tools = createOpenClawLocalTools(
+      new OpenClawAttachmentRegistry("/unused"),
+      async () => pipeline,
+      { sessionKey: "session-1" }
+    );
+    const inspect = tools.find((tool) => tool.name === "quick_image_inspect_attachment");
+
+    expect(inspect?.parameters.oneOf).toEqual([
+      { required: ["attachment_id"] },
+      { required: ["path"] }
+    ]);
+
+    const missingSourceResult = await inspect?.execute("call-1", {});
+    const duplicateSourceResult = await inspect?.execute("call-2", {
+      attachment_id: `qio_${"a".repeat(43)}`,
+      path: "/tmp/quick-image-test/input.png"
+    });
+
+    expect(missingSourceResult?.isError).toBe(true);
+    expect(missingSourceResult?.content[0]?.text).toContain('"code":"LOCAL_TOOL_ERROR"');
+    expect(duplicateSourceResult?.isError).toBe(true);
+    expect(duplicateSourceResult?.content[0]?.text).toContain('"code":"LOCAL_TOOL_ERROR"');
+    expect(pipeline.inspect).not.toHaveBeenCalled();
+  });
+
   it("rejects an attachment id from another OpenClaw session", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
     temporaryDirectories.push(root);

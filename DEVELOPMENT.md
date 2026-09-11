@@ -13,7 +13,7 @@ Quick Image Agent Plugin 为 Codex 和 OpenClaw 提供同一份生成 Skill 与�
 - 服务端负责鉴权、素材归属、最终校验、最终计价、扣费、幂等和任务状态。
 - 本地工具负责附件检查、准备、能力专用估价与暂存上传。检查阶段只保存路径、文件身份、校验和和媒体元数据，不复制附件字节。
 - 所有本地工具均不接受 Base64 或 Token。报价不上传、不扣费且不锁价。
-- 插件不提供图库浏览、任务取消、业务重试、结果删除或充值工具。
+- 插件不提供 Quick Image 云端图库浏览、任务取消、结果删除或充值工具；用户可以直接提供已知的 `asset_id`，由服务端校验归属和可用性。可按服务端 `retryable` 和 `retry_after` 处理当前请求的重试，不创建独立的重试任务。
 
 共享 Skill 的 `SKILL.md` 只保留核心生命周期、安全不变式和阶段路由；鉴权、附件、报价提交、结果轮询分别位于 `skills/quick-image/references/`，仅在进入对应阶段时读取，以减少不相关任务的上下文消耗。
 
@@ -160,7 +160,7 @@ OpenClaw 提交成功后创建一个每 30 秒运行的 `isolated agentTurn` rec
 
 ## 附件适配契约
 
-Codex 通过 `inspect_attachment` 检查当前对话明确提供的绝对路径，并将该工具设为逐次审批。OpenClaw 原生适配层从 `message_received` 获取宿主可信的媒体路径，持久化为会话附件 ID；`quick_image_list_attachments` 默认返回当前会话最近 10 个候选并按上传时间从旧到新排列，同时用 `has_more` 标识是否还有更早候选。模型根据对话语境选定后再将对应 ID 交给 `quick_image_inspect_attachment`，不会接触本地路径或历史 `media://` 引用。
+宿主或 AI 可以根据用户意图解析路径、浏览目录或搜索文件，并将确定的本地文件绝对路径或 Runtime 支持的媒体引用传给 Quick Image 本地工具。插件信任调用方提供的具体输入，不校验来源或另行实施目录授权；实际可读范围由宿主进程的系统文件权限和 Runtime 的引用解析规则决定。OpenClaw 原生适配层仍从 `message_received` 获取会话媒体路径，持久化为与会话绑定的附件 ID，供模型发现和引用当前会话附件；已知的 `media://` 引用也可以直接传入。`quick_image_list_attachments` 默认返回当前会话最近 10 个候选并按上传时间从旧到新排列，同时用 `has_more` 标识是否还有更早候选。模型根据用户意图选定文件后，再将绝对路径、媒体引用或对应 ID 交给 Quick Image 本地工具。
 
 附件检查会校验普通文件、真实媒体格式、大小和时长，计算 SHA-256，并在权限为 `0700/0600` 的私有状态区记录路径、文件身份和媒体元数据；不会保存附件字节。用户确认报价后，Codex 的 `prepare_attachment` 或 OpenClaw 的 `quick_image_prepare_attachment` 使用一次性 `attachment_handle` 重新读取原文件并比对身份与校验和，图片此时才使用 `sharp` 自动旋转、缩放和压缩，最终字节写入私有暂存区。所有返回值都不包含原始路径。
 

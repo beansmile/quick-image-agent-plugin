@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "quick-image",
   "version": "0.1.1",
-  "description": "Inspect conversation attachments and run Quick Image generation workflows.",
+  "description": "Inspect host-provided conversation attachments or local media and run Quick Image generation workflows.",
   "author": { "name": "Minded One, LLC", "url": "https://quickimage.ai" },
   "homepage": "https://quickimage.ai",
   "repository": "https://github.com/beansmile/quick-image-agent-plugin",

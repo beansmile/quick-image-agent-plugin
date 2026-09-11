@@ -27,8 +27,12 @@ export const OPENCLAW_LOCAL_TOOL_NAMES = [
 export type AttachmentPipelineProvider = () => Promise<AttachmentPipelinePort>;
 
 const inspectInputSchema = z.object({
-  attachment_id: z.string().regex(/^qio_[A-Za-z0-9_-]{43}$/)
-}).strict();
+  attachment_id: z.string().regex(/^qio_[A-Za-z0-9_-]{43}$/).optional(),
+  path: z.string().min(1).optional()
+}).strict().refine(
+  ({ attachment_id, path }) => Boolean(attachment_id) !== Boolean(path),
+  "attachment_id 和 path 必须二选一"
+);
 
 const prepareInputSchema = z.object({
   attachment_handle: z.string().regex(/^qia_[A-Za-z0-9_-]{43}$/)
@@ -70,7 +74,7 @@ function createInspectTool(
   return {
     name: "quick_image_inspect_attachment",
     label: "检查 Quick Image 附件",
-    description: "检查当前 OpenClaw 会话中的附件并返回不包含本地路径或附件字节的一次性句柄。此步骤不处理、不暂存、不上传附件。",
+    description: "检查当前 OpenClaw 会话附件，或检查宿主或 AI 根据用户意图提供的本地文件路径或媒体引用，返回不包含本地路径或附件字节的一次性句柄。此步骤不处理、不暂存、不上传附件。",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -78,18 +82,27 @@ function createInspectTool(
         attachment_id: {
           type: "string",
           pattern: "^qio_[A-Za-z0-9_-]{43}$",
-          description: "quick_image_list_attachments 返回的当前会话附件 ID。"
+          description: "quick_image_list_attachments 返回的当前会话附件 ID；与 path 二选一。"
+        },
+        path: {
+          type: "string",
+          minLength: 1,
+          description: "宿主或 AI 根据用户意图提供的本地文件绝对路径或 Runtime 支持的媒体引用；与 attachment_id 二选一。"
         }
       },
-      required: ["attachment_id"]
+      oneOf: [
+        { required: ["attachment_id"] },
+        { required: ["path"] }
+      ]
     },
     annotations: readOnlyAnnotations,
     async execute(_toolCallId, rawParameters) {
       return executeLocalTool(async () => {
         const parameters = inspectInputSchema.parse(rawParameters);
         const sessionKey = requireSessionKey(context);
-        const attachment = await registry.resolveForSession(parameters.attachment_id, sessionKey);
-        return (await pipelineProvider()).inspect(attachment.source_reference, sessionKey);
+        const sourceReference = parameters.path ??
+          (await registry.resolveForSession(parameters.attachment_id!, sessionKey)).source_reference;
+        return (await pipelineProvider()).inspect(sourceReference, sessionKey);
       });
     }
   };

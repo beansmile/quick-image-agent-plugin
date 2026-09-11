@@ -1,6 +1,6 @@
 ---
 name: quick-image
-description: 使用 Quick Image 对当前对话附件执行搭配出图、换姿、高清或视频生成，或检查和更新 Quick Image Agent Plugin。用户要求基于图片、视频或音频生成内容、查询 Quick Image 任务、查看生成结果或询问 Plugin 更新时使用；生成任务必须先读取公开配置并本地预估报价，确认后再执行安全附件上传、幂等提交和限速轮询流程。
+description: 使用 Quick Image 对当前会话附件或宿主可访问的本地媒体执行搭配出图、换姿、高清或视频生成，或检查和更新 Quick Image Agent Plugin。用户要求基于图片、视频或音频生成内容、查询 Quick Image 任务、查看生成结果或询问 Plugin 更新时使用；生成任务必须先读取公开配置并本地预估报价，确认后再执行安全附件上传、幂等提交和限速轮询流程。
 ---
 
 # Quick Image 生成
@@ -9,11 +9,11 @@ description: 使用 Quick Image 对当前对话附件执行搭配出图、换姿
 
 ## 核心安全边界
 
-- 只处理当前对话中明确提供的附件、当前对话已返回的 Quick Image `asset_id`，或本次配置返回的模板；不列出或搜索用户图库，不创建跨能力流水线，不提供取消、删除、充值或业务重试。
-- 不读取或索要 Token、Bearer Token、授权码以外的凭据；不扫描本地目录，不接受模型猜测的路径、任意上传 URL、Base64 或 `media://` 引用。
-- 每次请求只创建一个 `lookbook`、`pose`、`upscale` 或 `video` 任务。用户明确要求再次生成属于新任务，必须重新配置、报价和生成新的 UUID v4 幂等键。
+- 只处理当前会话中明确提供的附件、宿主或 AI 根据用户意图确定的本地媒体路径或媒体引用、用户明确提供且服务端可验证的 Quick Image `asset_id`，或本次配置返回的模板；不列出或搜索 Quick Image 用户图库，不在用户未要求时自动串联能力，不提供独立的取消、删除或充值工具。
+- 不读取或索要 Token、Bearer Token、授权码以外的凭据；本地文件需求可以使用宿主原生的路径解析、目录浏览、文件搜索或文件读取能力。已有具体绝对路径或 Runtime 支持的媒体引用时可直接传入，插件信任该输入，实际可读范围由宿主进程的系统文件权限和 Runtime 的引用解析规则决定；不接受任意上传 URL 或 Base64。
+- 每个逻辑任务创建一个 `lookbook`、`pose`、`upscale` 或 `video` 任务。用户一次提出多个任务时，按任务分别配置、报价、确认、生成 UUID v4 幂等键并提交；用户明确要求再次生成属于新任务。
 - 报价确认前不得准备、上传或提交附件；报价只是预估，最终计价和扣费以服务端结果为准。
-- 工具发现、工具审批、绝对路径或媒体校验失败时立即停止；禁止扫描目录、猜测路径或寻找替代入口。
+- 工具发现、目标路径确定或媒体校验失败时立即停止；没有明确的本地文件处理意图时，不主动扫描无关目录或寻找替代入口。
 
 ## MCP 连接与授权故障
 
@@ -35,7 +35,7 @@ description: 使用 Quick Image 对当前对话附件执行搭配出图、换姿
 
 1. 开始时先按宿主工具发现能力查找 Quick Image 远程工具和本地工具。远程工具包括 `get_agent_plugin_installation_plan`、`get_generation_config`、`create_direct_upload`、`submit_lookbook_task`、`submit_pose_task`、`submit_upscale_task`、`submit_video_task`、`list_generation_tasks` 和 `get_generation_tasks`；Codex 本地工具包括 `inspect_attachment`、`prepare_attachment`、`estimate_lookbook_credits`、`estimate_pose_credits`、`estimate_upscale_credits`、`estimate_video_credits` 和 `upload_staged_attachment`；OpenClaw 原生工具包括 `quick_image_list_attachments`、`quick_image_inspect_attachment`、`quick_image_prepare_attachment`、`quick_image_estimate_lookbook_credits`、`quick_image_estimate_pose_credits`、`quick_image_estimate_upscale_credits`、`quick_image_estimate_video_credits`、`quick_image_upload_staged_attachment` 和 `quick_image_send_preview`。
 2. 发现工具后调用 `get_generation_config`。确定能力、模型、参数、模板、附件角色和动态限制前，读取 [parameters.md](references/parameters.md)。不要使用记忆中的旧配置或固定限制。
-3. 任务需要附件时，读取 [attachments.md](references/attachments.md)，再选择并检查附件并保留一次性 `attachment_handle`。检查阶段不得准备、上传或创建直传信息。
+3. 任务需要附件时，读取 [attachments.md](references/attachments.md)，根据用户意图从会话附件中选择媒体，或由宿主或 AI 确定本地媒体绝对路径或媒体引用，再检查附件并保留一次性 `attachment_handle`。检查阶段不得准备、上传或创建直传信息。
 4. 需要报价、等待用户确认、确认后上传或提交任务时，读取 [submission.md](references/submission.md)。只调用与当前能力对应的估价和提交工具；本地预估完成并取得用户确认后才执行上传，余额不足时立即停止。
 5. 任务提交成功、需要轮询、发送结果或查询历史时，读取 [results.md](references/results.md)。
 6. 工具字段语义不明确时读取 [tools.md](references/tools.md)；它是工具契约参考，不替代当前 MCP Schema 或 `get_generation_config` 返回的动态约束。
