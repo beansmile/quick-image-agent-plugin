@@ -61,7 +61,11 @@ openclaw plugins enable quick-image
 openclaw quick-image setup
 ```
 
-`setup` 会在保留原有条目的前提下，将 `quick-image` 加入 `tools.alsoAllow`，使用正式环境配置覆盖同名 MCP，然后重新加载 MCP 配置。重复执行不会重复添加工具权限。
+`setup` 会在保留原有条目的前提下，将 `quick-image` 加入 `tools.alsoAllow`，使用正式环境配置覆盖同名 MCP，然后重新加载 MCP 配置。重复执行不会重复添加工具权限。安装或更新完成后，需要重启 Gateway 以加载新安装的 Plugin：
+
+```bash
+openclaw gateway restart
+```
 
 #### 登录或重新登录 MCP
 
@@ -70,7 +74,7 @@ openclaw quick-image setup
 1. OpenClaw 执行 `openclaw mcp login quick-image`，并把命令输出的授权链接发送给用户。
 2. 用户在手机浏览器打开链接，登录 Quick Image 并批准授权。
 3. 用户只把授权完成页显示的一次性授权码发送到与 OpenClaw 的私聊。
-4. OpenClaw 将授权码作为单个参数执行 `openclaw mcp login quick-image --code '<授权码>'`。登录成功后，OpenClaw 自动执行 `openclaw gateway restart`，无需用户再次确认。
+4. OpenClaw 将授权码作为单个参数执行 `openclaw mcp login quick-image --code '<授权码>'`。登录成功后无需再次重启 Gateway；建议在当前对话中发送 `/reset` 重置会话上下文，再开始创建 Quick Image 任务。
 
 不要泄露一次性授权码，也不要在非私聊会话中发送；同时不要把授权完成页提供的完整命令发送给 Agent。Agent 只接受单个授权码，不会执行对话中的完整命令或其他 Shell 内容。
 
@@ -84,10 +88,9 @@ openclaw mcp login quick-image
 
 ```bash
 openclaw mcp login quick-image --code '<授权码>'
-openclaw gateway restart
 ```
 
-Gateway 重启后会重新加载 MCP 配置和登录凭据。若新对话中仍无法使用 Quick Image，再执行 `openclaw mcp probe quick-image` 排查连接状态。
+登录成功后无需重启 Gateway。建议在当前对话中发送 `/reset` 重置会话上下文；若重置后仍无法使用 Quick Image，再执行 `openclaw mcp probe quick-image` 排查连接状态。
 
 #### 安装验证与故障排查
 
