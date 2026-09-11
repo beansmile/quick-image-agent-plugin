@@ -10,17 +10,30 @@ import {
 // src/openclaw/attachment-registry.ts
 import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import { constants as fsConstants } from "fs";
-import { chmod, lstat, mkdir, open, readFile, readdir, rm } from "fs/promises";
+import { chmod, link, lstat, mkdir, open, readFile, readdir, rm } from "fs/promises";
+import os from "os";
 import path from "path";
-import { HANDLE_TTL_MS, PluginError } from "quick-image-agent-runtime";
+import { PluginError } from "quick-image-agent-runtime";
 var ATTACHMENT_ID_PATTERN = /^qio_[A-Za-z0-9_-]{43}$/;
+var RECORD_FILENAME_PATTERN = /^[0-9a-f]{64}\.json$/;
+var OPENCLAW_MEDIA_REFERENCE_PATTERN = /^media:\/\/inbound\/([A-Za-z0-9][A-Za-z0-9._-]{0,254})$/;
 var DEFAULT_LIST_LIMIT = 10;
+var DEFAULT_MAX_RECORDS_PER_SESSION = 500;
+var STALE_TEMPORARY_RECORD_MS = 10 * 60 * 1e3;
 var OpenClawAttachmentRegistry = class {
   recordsDirectory;
+  isSourceAvailable;
+  maxRecordsPerSession;
   initialized;
   lastRegistrationTimeMs = 0;
-  constructor(root) {
+  constructor(root, options = {}) {
     this.recordsDirectory = path.join(root, "openclaw-attachment-records");
+    this.isSourceAvailable = options.isSourceAvailable ?? sourceReferenceIsAvailable;
+    const maxRecordsPerSession = options.maxRecordsPerSession ?? DEFAULT_MAX_RECORDS_PER_SESSION;
+    if (!Number.isInteger(maxRecordsPerSession) || maxRecordsPerSession < 1) {
+      throw new Error("maxRecordsPerSession must be a positive integer");
+    }
+    this.maxRecordsPerSession = maxRecordsPerSession;
   }
   initialize() {
     this.initialized ??= this.initializeOnce();
@@ -41,11 +54,11 @@ var OpenClawAttachmentRegistry = class {
         session_digest: sessionDigest,
         ...params.runId ? { run_id: params.runId } : {},
         ...params.messageId ? { message_id: params.messageId } : {},
-        received_at: now.toISOString(),
-        expires_at: new Date(now.getTime() + HANDLE_TTL_MS).toISOString()
+        received_at: now.toISOString()
       };
       await writePrivateJson(this.recordPath(attachmentId), record);
     }));
+    await this.pruneExcessRecords(sessionDigest);
   }
   async list(sessionKey, options = {}) {
     return (await this.listCandidates(sessionKey, options)).attachments;
@@ -57,12 +70,18 @@ var OpenClawAttachmentRegistry = class {
     const limit = Math.min(20, Math.max(1, options.limit ?? DEFAULT_LIST_LIMIT));
     const sessionRecords = records.filter((record) => secureEqual(record.session_digest, sessionDigest));
     const selected = options.messageId ? sessionRecords.filter((record) => record.message_id === options.messageId) : sessionRecords;
+    const newestFirst = attachmentRecordsNewestFirst(selected);
+    const startIndex = options.cursor === void 0 ? 0 : cursorStartIndex(newestFirst, options.cursor);
+    const pageNewestFirst = newestFirst.slice(startIndex, startIndex + limit);
+    const hasMore = startIndex + pageNewestFirst.length < newestFirst.length;
+    const nextCursor = hasMore ? pageNewestFirst[pageNewestFirst.length - 1].attachment_id : void 0;
     return {
-      attachments: recentAttachmentsInChronologicalOrder(selected, limit),
-      has_more: selected.length > limit
+      attachments: [...pageNewestFirst].reverse(),
+      has_more: hasMore,
+      ...nextCursor ? { next_cursor: nextCursor } : {}
     };
   }
-  async cleanupExpired() {
+  async cleanupUnavailable() {
     await this.initialize();
     await this.readActiveRecords();
   }
@@ -72,10 +91,10 @@ var OpenClawAttachmentRegistry = class {
     try {
       const record = parseRecord(await readFile(this.recordPath(attachmentId), "utf8"));
       if (!secureEqual(record.attachment_id, attachmentId)) throw new Error("attachment id mismatch");
-      if (Date.parse(record.expires_at) <= Date.now()) throw new Error("attachment reference expired");
+      if (!await this.isSourceAvailable(record.source_reference)) throw new Error("attachment source unavailable");
       return record;
     } catch {
-      throw new PluginError("OPENCLAW_ATTACHMENT_NOT_FOUND", "OpenClaw \u9644\u4EF6\u5F15\u7528\u4E0D\u5B58\u5728\u6216\u5DF2\u8FC7\u671F\u3002", {
+      throw new PluginError("OPENCLAW_ATTACHMENT_NOT_FOUND", "OpenClaw \u9644\u4EF6\u5F15\u7528\u4E0D\u5B58\u5728\u6216\u6E90\u6587\u4EF6\u5DF2\u4E0D\u53EF\u7528\u3002", {
         field: "attachment_id",
         suggested_action: "\u8BF7\u91CD\u65B0\u53D1\u9001\u6216\u91CD\u65B0\u5F15\u7528\u9644\u4EF6\u3002"
       });
@@ -84,7 +103,7 @@ var OpenClawAttachmentRegistry = class {
   async resolveForSession(attachmentId, sessionKey) {
     const record = await this.resolve(attachmentId);
     if (!secureEqual(record.session_digest, digest(sessionKey))) {
-      throw new PluginError("OPENCLAW_ATTACHMENT_NOT_FOUND", "OpenClaw \u9644\u4EF6\u5F15\u7528\u4E0D\u5B58\u5728\u6216\u5DF2\u8FC7\u671F\u3002", {
+      throw new PluginError("OPENCLAW_ATTACHMENT_NOT_FOUND", "OpenClaw \u9644\u4EF6\u5F15\u7528\u4E0D\u5B58\u5728\u3001\u4E0D\u53EF\u7528\u4E8E\u5F53\u524D\u4F1A\u8BDD\u6216\u6E90\u6587\u4EF6\u5DF2\u4E0D\u53EF\u7528\u3002", {
         field: "attachment_id",
         suggested_action: "\u8BF7\u91CD\u65B0\u53D1\u9001\u6216\u91CD\u65B0\u5F15\u7528\u9644\u4EF6\u3002"
       });
@@ -97,6 +116,10 @@ var OpenClawAttachmentRegistry = class {
     const entries = await readdir(this.recordsDirectory, { withFileTypes: true });
     await Promise.all(entries.filter((entry) => entry.isFile()).map(async (entry) => {
       const filePath = path.join(this.recordsDirectory, entry.name);
+      if (!RECORD_FILENAME_PATTERN.test(entry.name)) {
+        await removeStaleTemporaryRecord(entry.name, filePath);
+        return;
+      }
       try {
         const record = parseRecord(await readFile(filePath, "utf8"));
         if (secureEqual(record.session_digest, sessionDigest)) await rm(filePath, { force: true });
@@ -118,9 +141,13 @@ var OpenClawAttachmentRegistry = class {
     const records = [];
     await Promise.all(entries.filter((entry) => entry.isFile()).map(async (entry) => {
       const filePath = path.join(this.recordsDirectory, entry.name);
+      if (!RECORD_FILENAME_PATTERN.test(entry.name)) {
+        await removeStaleTemporaryRecord(entry.name, filePath);
+        return;
+      }
       try {
         const record = parseRecord(await readFile(filePath, "utf8"));
-        if (Date.parse(record.expires_at) <= Date.now()) {
+        if (!await this.isSourceAvailable(record.source_reference)) {
           await rm(filePath, { force: true });
           return;
         }
@@ -130,6 +157,11 @@ var OpenClawAttachmentRegistry = class {
       }
     }));
     return records;
+  }
+  async pruneExcessRecords(sessionDigest) {
+    const sessionRecords = (await this.readActiveRecords()).filter((record) => secureEqual(record.session_digest, sessionDigest));
+    const excessRecords = attachmentRecordsNewestFirst(sessionRecords).slice(this.maxRecordsPerSession);
+    await Promise.all(excessRecords.map((record) => rm(this.recordPath(record.attachment_id), { force: true })));
   }
   recordPath(attachmentId) {
     return path.join(this.recordsDirectory, `${digest(attachmentId)}.json`);
@@ -146,7 +178,7 @@ function assertAttachmentId(value) {
   }
 }
 function isSupportedSourceReference(value) {
-  return path.isAbsolute(value) || /^media:\/\/inbound\/[A-Za-z0-9][A-Za-z0-9._-]{0,254}$/.test(value);
+  return path.isAbsolute(value) || OPENCLAW_MEDIA_REFERENCE_PATTERN.test(value);
 }
 function digest(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -158,22 +190,74 @@ function secureEqual(left, right) {
 }
 function parseRecord(value) {
   const record = JSON.parse(value);
-  if (typeof record.attachment_id !== "string" || !ATTACHMENT_ID_PATTERN.test(record.attachment_id) || typeof record.session_digest !== "string" || !/^[0-9a-f]{64}$/.test(record.session_digest) || typeof record.source_reference !== "string" || !isSupportedSourceReference(record.source_reference) || !Number.isInteger(record.position) || (record.position ?? 0) < 1 || !["image", "video", "audio", "unknown"].includes(record.kind ?? "") || typeof record.received_at !== "string" || !Number.isFinite(Date.parse(record.received_at)) || typeof record.expires_at !== "string" || !Number.isFinite(Date.parse(record.expires_at))) {
+  if (typeof record.attachment_id !== "string" || !ATTACHMENT_ID_PATTERN.test(record.attachment_id) || typeof record.session_digest !== "string" || !/^[0-9a-f]{64}$/.test(record.session_digest) || typeof record.source_reference !== "string" || !isSupportedSourceReference(record.source_reference) || !Number.isInteger(record.position) || (record.position ?? 0) < 1 || !["image", "video", "audio", "unknown"].includes(record.kind ?? "") || typeof record.received_at !== "string" || !Number.isFinite(Date.parse(record.received_at)) || Object.hasOwn(record, "expires_at")) {
     throw new Error("invalid OpenClaw attachment record");
   }
   return record;
 }
-function recentAttachmentsInChronologicalOrder(records, limit) {
-  return records.sort((left, right) => right.received_at.localeCompare(left.received_at) || right.position - left.position).slice(0, limit).sort((left, right) => left.received_at.localeCompare(right.received_at) || left.position - right.position);
+function attachmentRecordsNewestFirst(records) {
+  return [...records].sort((left, right) => right.received_at.localeCompare(left.received_at) || right.position - left.position);
+}
+function cursorStartIndex(records, cursor) {
+  assertAttachmentId(cursor);
+  const cursorIndex = records.findIndex((record) => secureEqual(record.attachment_id, cursor));
+  if (cursorIndex === -1) {
+    throw new PluginError("OPENCLAW_ATTACHMENT_CURSOR_NOT_FOUND", "OpenClaw \u9644\u4EF6\u5206\u9875\u6E38\u6807\u4E0D\u5B58\u5728\u6216\u5DF2\u5931\u6548\u3002", {
+      field: "cursor",
+      suggested_action: "\u8BF7\u91CD\u65B0\u5217\u51FA\u5F53\u524D\u4F1A\u8BDD\u9644\u4EF6\u3002"
+    });
+  }
+  return cursorIndex + 1;
+}
+async function sourceReferenceIsAvailable(sourceReference) {
+  const sourcePath = await sourceReferencePath(sourceReference);
+  if (!sourcePath) return false;
+  try {
+    const details = await lstat(sourcePath);
+    return details.isFile() && !details.isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+async function sourceReferencePath(sourceReference) {
+  if (path.isAbsolute(sourceReference)) return sourceReference;
+  const mediaMatch = OPENCLAW_MEDIA_REFERENCE_PATTERN.exec(sourceReference);
+  if (!mediaMatch?.[1]) return void 0;
+  const configuredStateDirectory = process.env.OPENCLAW_STATE_DIR?.trim();
+  const stateDirectory = configuredStateDirectory ? path.resolve(configuredStateDirectory) : path.join(os.homedir(), ".openclaw");
+  const inboundDirectory = path.join(stateDirectory, "media", "inbound");
+  try {
+    const details = await lstat(inboundDirectory);
+    if (!details.isDirectory() || details.isSymbolicLink()) return void 0;
+  } catch {
+    return void 0;
+  }
+  return path.join(inboundDirectory, mediaMatch[1]);
 }
 async function writePrivateJson(filePath, value) {
-  const file = await open(filePath, fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY, 384);
+  const temporaryPath = `${filePath}.tmp-${randomBytes(16).toString("hex")}`;
   try {
-    await file.writeFile(`${JSON.stringify(value)}
+    const file = await open(temporaryPath, fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY, 384);
+    try {
+      await file.writeFile(`${JSON.stringify(value)}
 `, "utf8");
-    await file.sync();
+      await file.sync();
+    } finally {
+      await file.close();
+    }
+    await link(temporaryPath, filePath);
   } finally {
-    await file.close();
+    await rm(temporaryPath, { force: true });
+  }
+}
+async function removeStaleTemporaryRecord(fileName, filePath) {
+  if (!fileName.includes(".json.tmp-")) return;
+  try {
+    const details = await lstat(filePath);
+    if (Date.now() - details.mtimeMs >= STALE_TEMPORARY_RECORD_MS) {
+      await rm(filePath, { force: true });
+    }
+  } catch {
   }
 }
 async function ensurePrivateDirectory(directory) {
@@ -511,7 +595,7 @@ function buildOpenClawMcpConfig(urls, pluginVersion) {
 
 // src/environment/executables.ts
 import { accessSync, constants } from "fs";
-import os from "os";
+import os2 from "os";
 import path2 from "path";
 function resolveOpenClawExecutable(explicitPath) {
   const configured = explicitPath?.trim() || process.env.OPENCLAW_CLI_PATH?.trim();
@@ -744,6 +828,11 @@ function createListAttachmentsTool(registry, pendingRegistrations, context) {
           minimum: 1,
           maximum: 20,
           description: "\u6700\u591A\u8FD4\u56DE\u7684\u9644\u4EF6\u6570\u91CF\uFF0C\u9ED8\u8BA4 10\u3002"
+        },
+        cursor: {
+          type: "string",
+          pattern: "^qio_[A-Za-z0-9_-]{43}$",
+          description: "\u53EF\u9009\uFF1B\u4E0A\u4E00\u9875\u8FD4\u56DE\u7684 next_cursor\uFF0C\u7528\u4E8E\u7EE7\u7EED\u8BFB\u53D6\u66F4\u65E9\u7684\u9644\u4EF6\u3002"
         }
       }
     },
@@ -753,7 +842,8 @@ function createListAttachmentsTool(registry, pendingRegistrations, context) {
       await pendingRegistrations.get(context.sessionKey);
       const result = await registry.listCandidates(context.sessionKey, {
         ...parameters.message_id ? { messageId: parameters.message_id } : {},
-        ...parameters.limit ? { limit: parameters.limit } : {}
+        ...parameters.limit ? { limit: parameters.limit } : {},
+        ...parameters.cursor ? { cursor: parameters.cursor } : {}
       });
       return {
         content: [{
@@ -765,10 +855,10 @@ function createListAttachmentsTool(registry, pendingRegistrations, context) {
               media_type: attachment.media_type ?? null,
               message_id: attachment.message_id ?? null,
               position: attachment.position,
-              received_at: attachment.received_at,
-              expires_at: attachment.expires_at
+              received_at: attachment.received_at
             })),
-            has_more: result.has_more
+            has_more: result.has_more,
+            next_cursor: result.next_cursor ?? null
           })
         }]
       };
@@ -809,6 +899,12 @@ function parseListParameters(value) {
       throw new Error("limit \u5FC5\u987B\u662F 1 \u5230 20 \u7684\u6574\u6570\u3002");
     }
     result.limit = value.limit;
+  }
+  if (value.cursor !== void 0) {
+    if (typeof value.cursor !== "string" || !/^qio_[A-Za-z0-9_-]{43}$/.test(value.cursor)) {
+      throw new Error("cursor \u5FC5\u987B\u662F\u6709\u6548\u7684\u9644\u4EF6\u5206\u9875\u6E38\u6807\u3002");
+    }
+    result.cursor = value.cursor;
   }
   return result;
 }
@@ -895,7 +991,7 @@ var plugin = {
     }
     api.registerTool((context) => createPreviewTool(api, context), { name: PREVIEW_TOOL_NAME });
     const cleanupTimer = setInterval(() => {
-      const cleanupTasks = [registry.cleanupExpired()];
+      const cleanupTasks = [registry.cleanupUnavailable()];
       if (pipelinePromise) cleanupTasks.push(pipelinePromise.then((pipeline) => pipeline.cleanupExpired()));
       void Promise.all(cleanupTasks).catch(() => {
         process.stderr.write(`${JSON.stringify({ code: "ATTACHMENT_CLEANUP_FAILED" })}

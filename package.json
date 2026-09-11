@@ -1,6 +1,6 @@
 {
   "name": "quick-image-agent-plugin",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Quick Image Agent Plugin for supported AI agent hosts",
   "type": "module",

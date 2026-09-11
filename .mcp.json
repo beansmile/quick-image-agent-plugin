@@ -4,11 +4,11 @@
       "type": "http",
       "url": "https://quickimage.ai/mcp",
       "headers": {
-        "X-Quick-Image-Plugin-Version": "0.1.1",
+        "X-Quick-Image-Plugin-Version": "0.1.2",
         "X-Quick-Image-Frontend-URL": "https://quickimage.ai"
       },
       "http_headers": {
-        "X-Quick-Image-Plugin-Version": "0.1.1",
+        "X-Quick-Image-Plugin-Version": "0.1.2",
         "X-Quick-Image-Frontend-URL": "https://quickimage.ai"
       }
     },

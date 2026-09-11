@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -14,6 +14,7 @@ import { HANDLE_TTL_MS, type AttachmentPipelinePort } from "quick-image-agent-ru
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
 });
 
@@ -71,7 +72,7 @@ describe("OpenClaw native preview adapter", () => {
   it("lists only opaque attachment ids for the current attachment message", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
     temporaryDirectories.push(root);
-    const registry = new OpenClawAttachmentRegistry(root);
+    const registry = createAvailableRegistry(root);
     const registration = registry.register({
       sessionKey: "session-1",
       runId: "run-1",
@@ -98,7 +99,7 @@ describe("OpenClaw native preview adapter", () => {
   it("treats an empty optional message id as omitted", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
     temporaryDirectories.push(root);
-    const registry = new OpenClawAttachmentRegistry(root);
+    const registry = createAvailableRegistry(root);
     await registry.register({
       sessionKey: "session-1",
       messageId: "message-1",
@@ -122,7 +123,7 @@ describe("OpenClaw native preview adapter", () => {
   it("returns the latest ten attachments across messages in chronological order", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
     temporaryDirectories.push(root);
-    const registry = new OpenClawAttachmentRegistry(root);
+    const registry = createAvailableRegistry(root);
     await registry.register({
       sessionKey: "session-1",
       messageId: "message-old",
@@ -178,12 +179,14 @@ describe("OpenClaw native preview adapter", () => {
     await expect(registry.list("another-session")).resolves.toEqual([]);
   });
 
-  it("cleans expired attachment records without listing them first", async () => {
+  it("keeps attachment discovery records while the source still exists", async () => {
     vi.useFakeTimers();
     try {
       const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
       temporaryDirectories.push(root);
-      const registry = new OpenClawAttachmentRegistry(root);
+      const registry = new OpenClawAttachmentRegistry(root, {
+        isSourceAvailable: vi.fn().mockResolvedValue(true)
+      });
       await registry.register({
         sessionKey: "session-1",
         attachments: [{
@@ -194,12 +197,148 @@ describe("OpenClaw native preview adapter", () => {
       });
 
       vi.advanceTimersByTime(HANDLE_TTL_MS + 1);
-      await registry.cleanupExpired();
+      await registry.cleanupUnavailable();
 
-      await expect(registry.list("session-1")).resolves.toEqual([]);
+      await expect(registry.list("session-1")).resolves.toHaveLength(1);
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("removes discovery records using the obsolete expires_at schema", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
+    temporaryDirectories.push(root);
+    const registry = createAvailableRegistry(root);
+    await registry.register({
+      sessionKey: "session-1",
+      attachments: [{
+        source_reference: "/private/openclaw/media/inbound/reference.jpg",
+        kind: "image",
+        position: 1
+      }]
+    });
+    const recordsDirectory = path.join(root, "openclaw-attachment-records");
+    const [recordName] = await readdir(recordsDirectory);
+    const recordPath = path.join(recordsDirectory, recordName!);
+    const obsoleteRecord = JSON.parse(await readFile(recordPath, "utf8"));
+    obsoleteRecord.expires_at = new Date(Date.now() + 60_000).toISOString();
+    await writeFile(recordPath, `${JSON.stringify(obsoleteRecord)}\n`);
+
+    await expect(registry.list("session-1")).resolves.toEqual([]);
+    await expect(readFile(recordPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("ignores active temporary records and removes only stale leftovers", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
+    temporaryDirectories.push(root);
+    const registry = createAvailableRegistry(root);
+    await registry.initialize();
+    const recordsDirectory = path.join(root, "openclaw-attachment-records");
+    const temporaryRecordPath = path.join(recordsDirectory, `${"a".repeat(64)}.json.tmp-writing`);
+    await writeFile(temporaryRecordPath, "partial");
+
+    await expect(registry.list("session-1")).resolves.toEqual([]);
+    await expect(readFile(temporaryRecordPath, "utf8")).resolves.toBe("partial");
+
+    const staleTime = new Date(Date.now() - 11 * 60 * 1000);
+    await utimes(temporaryRecordPath, staleTime, staleTime);
+    await registry.cleanupUnavailable();
+
+    await expect(readFile(temporaryRecordPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("removes attachment discovery records after the source disappears", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
+    temporaryDirectories.push(root);
+    const openClawState = path.join(root, "openclaw-state");
+    const inboundDirectory = path.join(openClawState, "media", "inbound");
+    const sourcePath = path.join(inboundDirectory, "reference.jpg");
+    await mkdir(inboundDirectory, { recursive: true });
+    await writeFile(sourcePath, "fixture");
+    vi.stubEnv("OPENCLAW_STATE_DIR", openClawState);
+    const registry = new OpenClawAttachmentRegistry(root);
+    await registry.register({
+      sessionKey: "session-1",
+      attachments: [{
+        source_reference: "media://inbound/reference.jpg",
+        kind: "image",
+        position: 1
+      }]
+    });
+    await expect(registry.list("session-1")).resolves.toHaveLength(1);
+
+    await rm(sourcePath);
+
+    await expect(registry.list("session-1")).resolves.toEqual([]);
+  });
+
+  it("pages through older attachment discovery records with an opaque cursor", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
+    temporaryDirectories.push(root);
+    const registry = new OpenClawAttachmentRegistry(root, {
+      isSourceAvailable: vi.fn().mockResolvedValue(true)
+    });
+    for (let index = 1; index <= 25; index += 1) {
+      await registry.register({
+        sessionKey: "session-1",
+        messageId: `message-${index}`,
+        attachments: [{
+          source_reference: `/private/openclaw/media/inbound/reference-${index}.jpg`,
+          kind: "image",
+          position: 1
+        }]
+      });
+    }
+
+    const firstPage = await registry.listCandidates("session-1", { limit: 20 });
+    expect(firstPage.attachments).toHaveLength(20);
+    expect(firstPage.attachments[0]?.message_id).toBe("message-6");
+    expect(firstPage.attachments[19]?.message_id).toBe("message-25");
+    expect(firstPage.has_more).toBe(true);
+    expect(firstPage.next_cursor).toMatch(/^qio_[A-Za-z0-9_-]{43}$/);
+
+    const tool = createListAttachmentsTool(registry, new Map(), { sessionKey: "session-1" });
+    const secondPageResult = await tool.execute("call-1", {
+      limit: 20,
+      cursor: firstPage.next_cursor
+    });
+    const secondPage = JSON.parse(secondPageResult.content[0]?.text ?? "{}");
+    expect(tool.parameters.properties.cursor?.description).toContain("next_cursor");
+    expect(secondPage.attachments.map((attachment: { message_id: string }) => attachment.message_id)).toEqual([
+      "message-1",
+      "message-2",
+      "message-3",
+      "message-4",
+      "message-5"
+    ]);
+    expect(secondPage.has_more).toBe(false);
+    expect(secondPage.next_cursor).toBeNull();
+  });
+
+  it("caps retained attachment discovery records per session", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
+    temporaryDirectories.push(root);
+    const registry = new OpenClawAttachmentRegistry(root, {
+      isSourceAvailable: vi.fn().mockResolvedValue(true),
+      maxRecordsPerSession: 3
+    });
+    for (let index = 1; index <= 4; index += 1) {
+      await registry.register({
+        sessionKey: "session-1",
+        messageId: `message-${index}`,
+        attachments: [{
+          source_reference: `/private/openclaw/media/inbound/reference-${index}.jpg`,
+          kind: "image",
+          position: 1
+        }]
+      });
+    }
+
+    await expect(registry.list("session-1", { limit: 20 })).resolves.toMatchObject([
+      { message_id: "message-2" },
+      { message_id: "message-3" },
+      { message_id: "message-4" }
+    ]);
   });
 
   it("serializes pending registrations for the same session", async () => {
@@ -298,7 +437,7 @@ describe("OpenClaw native preview adapter", () => {
   it("uses the shared attachment pipeline without exposing a local path", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
     temporaryDirectories.push(root);
-    const registry = new OpenClawAttachmentRegistry(root);
+    const registry = createAvailableRegistry(root);
     await registry.register({
       sessionKey: "session-1",
       attachments: [{
@@ -382,7 +521,7 @@ describe("OpenClaw native preview adapter", () => {
   it("rejects an attachment id from another OpenClaw session", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
     temporaryDirectories.push(root);
-    const registry = new OpenClawAttachmentRegistry(root);
+    const registry = createAvailableRegistry(root);
     await registry.register({
       sessionKey: "session-1",
       attachments: [{ source_reference: "/private/openclaw/media/inbound/reference.jpg", kind: "image", position: 1 }]
@@ -487,4 +626,10 @@ function createPipelineFixture() {
     prepare: ReturnType<typeof vi.fn>;
     upload: ReturnType<typeof vi.fn>;
   };
+}
+
+function createAvailableRegistry(root: string) {
+  return new OpenClawAttachmentRegistry(root, {
+    isSourceAvailable: vi.fn().mockResolvedValue(true)
+  });
 }

@@ -19,7 +19,7 @@
 ## 本地工具
 
 - `inspect_attachment({ path })`：需要路径或媒体引用的宿主所使用的本地 MCP 工具；处理宿主或 AI 根据用户意图提供的本地媒体绝对路径或 Runtime 支持的媒体引用。读取真实媒体格式、大小、校验和与元数据，保存不含附件字节的轻量引用记录，返回一次性 `attachment_handle`。该步骤不压缩、不暂存、不上传。
-- `quick_image_list_attachments({ message_id?, limit? })`：OpenClaw 原生工具；默认返回当前会话最近 10 个附件候选并按上传时间从旧到新排列，`limit` 可设为 1～20，`message_id` 可精确限定单条历史消息。返回不透明 `attachment_id`、媒体类型、消息 ID、消息内顺序、时间和表示是否还有更早候选的 `has_more`，不返回本地路径。
+- `quick_image_list_attachments({ message_id?, limit?, cursor? })`：OpenClaw 原生工具；默认返回当前会话最近 10 个附件候选并按上传时间从旧到新排列，`limit` 可设为 1～20，`message_id` 可精确限定单条历史消息。返回不透明 `attachment_id`、媒体类型、消息 ID、消息内顺序、时间、`has_more` 和可选 `next_cursor`，不返回本地路径；继续读取更早附件时将 `next_cursor` 原样传为 `cursor`。
 - `quick_image_inspect_attachment({ attachment_id?, path? })`：OpenClaw 原生工具；`attachment_id` 用于读取 `quick_image_list_attachments` 登记的当前会话附件，`path` 用于读取宿主或 AI 根据用户意图提供的本地文件绝对路径或 Runtime 支持的媒体引用，两者必须二选一；返回轻量 `attachment_handle`。
 - `prepare_attachment` / `quick_image_prepare_attachment({ attachment_handle })`：分别是 Codex 本地 MCP 与 OpenClaw 原生入口。用户确认报价后重新读取已检查的原始附件，验证文件身份、校验和和媒体格式未变化并处理媒体；图片在此阶段自动旋转、缩放和压缩。成功后消费检查句柄，并返回暂存句柄及 `create_direct_upload_args` 完整参数对象（含 SHA-256 `checksum` 与 Base64 MD5 `upload_checksum`）。该对象必须整体转交给远程 `create_direct_upload`，不得逐字段转写。
 - `estimate_lookbook_credits` / `quick_image_estimate_lookbook_credits({ estimation_contract_version, pricing, preset, preset_price_behavior, output_count, confirmation_thresholds })`：预估搭配积分；未选择预设时 `preset` 传 `null`。
