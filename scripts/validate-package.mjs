@@ -96,8 +96,8 @@ if (companionMcp.mcpServers?.["quick-image"]?.http_headers?.["X-Quick-Image-Fron
 if (portableMcp.mcpServers?.["quick-image"]?.headers?.["X-Quick-Image-Frontend-URL"] !== "https://quickimage.ai") {
   errors.push("mcp.json: default frontend URL must remain production");
 }
-if (companionMcp.mcpServers?.["quick-image-local"]?.tools?.inspect_attachment?.approval_mode !== "prompt") {
-  errors.push("Codex MCP config: inspect_attachment must require prompt approval");
+if (companionMcp.mcpServers?.["quick-image-local"]?.tools !== undefined) {
+  errors.push("Codex MCP config: local tool permissions must be decided by the host");
 }
 if (Object.keys(portableMcp.mcpServers ?? {}).sort().join(",") !== "quick-image,quick-image-local") {
   errors.push("mcp.json: only the remote MCP and local agent runtime may be declared");
@@ -158,7 +158,7 @@ for (const requiredTool of [
 ]) {
   if (!skill.includes(requiredTool)) errors.push(`skill is missing capability-specific tool: ${requiredTool}`);
 }
-for (const requiredRule of ["工具发现", "禁止扫描", "绝对路径", "工具审批", "立即停止"]) {
+for (const requiredRule of ["工具发现", "宿主原生", "绝对路径", "立即停止"]) {
   if (!skill.includes(requiredRule)) errors.push(`skill is missing fail-closed rule: ${requiredRule}`);
 }
 for (const requiredRule of [

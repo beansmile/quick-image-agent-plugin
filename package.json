@@ -1,6 +1,6 @@
 {
   "name": "quick-image-agent-plugin",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "private": true,
   "description": "Quick Image Agent Plugin for supported AI agent hosts",
   "type": "module",
@@ -30,13 +30,14 @@
     "dev:install:codex": "pnpm build && node scripts/install-local-codex.mjs",
     "dev:install:openclaw": "pnpm build && openclaw plugins install . --force && openclaw plugins enable quick-image && openclaw quick-image env set --server-url http://127.0.0.1:3000/mcp --frontend-url http://127.0.0.1:8001",
     "pack:check": "npm pack --dry-run",
+    "plugin:set": "node scripts/set-plugin-version.mjs",
     "runtime:set": "node scripts/set-runtime-version.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "validate": "node scripts/validate-package.mjs"
   },
   "dependencies": {
-    "quick-image-agent-runtime": "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.4/quick-image-agent-runtime.tgz",
+    "quick-image-agent-runtime": "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.5/quick-image-agent-runtime.tgz",
     "zod": "3.25.76"
   },
   "openclaw": {
