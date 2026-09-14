@@ -11,7 +11,7 @@ Quick Image Agent Plugin 为 Codex 和 OpenClaw 提供同一份生成 Skill 与�
 - 插件支持搭配出图、换姿、高清和视频生成。
 - 生成前通过远程 MCP 获取公开配置并在本地预估报价，用户确认后才上传。
 - 服务端负责鉴权、素材归属、最终校验、最终计价、扣费、幂等和任务状态。
-- 本地工具负责附件检查、准备、能力专用估价与暂存上传。检查阶段只保存路径、文件身份、校验和和媒体元数据，不复制附件字节。
+- 本地工具负责附件检查、准备、能力专用估价与暂存上传。媒体默认按不透明输入处理；检查阶段只读取基础文件信息和限制校验所需的技术元数据，保存路径、文件身份、校验和和媒体元数据，不做语义内容分析或复制附件字节。
 - 所有本地工具均不接受 Base64 或 Token。报价不上传、不扣费且不锁价。
 - 插件不提供 Quick Image 云端图库浏览、任务取消、结果删除或充值工具；用户可以直接提供已知的 `asset_id`，由服务端校验归属和可用性。可按服务端 `retryable` 和 `retry_after` 处理当前请求的重试，不创建独立的重试任务。
 
@@ -162,7 +162,7 @@ OpenClaw 提交成功后创建一个每 30 秒运行的 `isolated agentTurn` rec
 
 宿主或 AI 可以根据用户意图解析路径、浏览目录或搜索文件，并将确定的本地文件绝对路径或 Runtime 支持的媒体引用传给 Quick Image 本地工具。插件信任调用方提供的具体输入，不校验来源或另行实施目录授权；实际可读范围由宿主进程的系统文件权限和 Runtime 的引用解析规则决定。OpenClaw 原生适配层仍从 `message_received` 获取会话媒体路径，持久化为与会话绑定的附件 ID，供模型发现和引用当前会话附件；已知的 `media://` 引用也可以直接传入。`quick_image_list_attachments` 默认返回当前会话最近 10 个候选并按上传时间从旧到新排列，同时用 `has_more` 和 `next_cursor` 分页读取更早候选。模型根据用户意图选定文件后，再将绝对路径、媒体引用或对应 ID 交给 Quick Image 本地工具。
 
-附件检查会校验普通文件、真实媒体格式、大小和时长，计算 SHA-256，并在权限为 `0700/0600` 的私有状态区记录路径、文件身份和媒体元数据；不会保存附件字节。用户确认报价后，Codex 的 `prepare_attachment` 或 OpenClaw 的 `quick_image_prepare_attachment` 使用一次性 `attachment_handle` 重新读取原文件并比对身份与校验和，图片此时才使用 `sharp` 自动旋转、缩放和压缩，最终字节写入私有暂存区。所有返回值都不包含原始路径。
+附件检查会校验普通文件、真实媒体格式、大小和时长，计算 SHA-256，并在权限为 `0700/0600` 的私有状态区记录路径、文件身份和媒体元数据；默认不进行图片、音频或视频语义分析，也不会保存附件字节。这里的校验和读取仅用于完整性校验，不代表内容分析。用户确认报价后，Codex 的 `prepare_attachment` 或 OpenClaw 的 `quick_image_prepare_attachment` 使用一次性 `attachment_handle` 重新读取原文件并比对身份与校验和，图片此时才使用 `sharp` 自动旋转、缩放和压缩，最终字节写入私有暂存区。所有返回值都不包含原始路径。
 
 OpenClaw 附件发现索引不复用处理句柄的 TTL，在源文件仍可读取期间保留，并将每个 session 限制为最近 500 条；OpenClaw 配置 `media.ttlHours` 后，宿主删除过期源文件，索引会在下次列表或每 10 分钟的定时清理中同步移除。检查记录和暂存记录仍默认有效 24 小时。成功准备会消费检查记录，成功上传会删除暂存文件；进程启动时再执行一次兜底清理。原文件在报价后变化、删除或不可读取时必须重新检查并重新报价。
 
@@ -178,11 +178,23 @@ QUICK_IMAGE_UPLOAD_HOSTS=<official-upload-host>,*.<official-upload-host>
 
 ## 开发与发布校验
 
-发布新的 Runtime 后，用一个命令同步 Plugin 依赖和两份 MCP 清单中的 Runtime Release tgz。环境 CLI 也必须使用同一个已审核的 Runtime Release tgz。正式环境使用稳定版本；staging 可使用 `v0.2.0-rc.1` 这类 GitHub Prerelease：
+发布新的 Runtime 后，用一个命令同步 Plugin 依赖和两份 MCP 清单中的 Runtime Release tgz。环境 CLI 也必须使用同一个已审核的 Runtime Release tgz。Plugin 和 Runtime 均只允许使用 `major.minor.patch` 格式的稳定版本，不允许 prerelease：
 
 ```bash
-pnpm runtime:set v<major>.<minor>.<patch>[-<prerelease>]
+pnpm runtime:set v<major>.<minor>.<patch>
 pnpm install --lockfile-only
+```
+
+发布新的 Plugin 版本时，用一个命令同步 Plugin manifest 和两份 MCP 清单中的版本 header：
+
+```bash
+pnpm plugin:set <major>.<minor>.<patch>
+```
+
+例如：
+
+```bash
+pnpm plugin:set 0.1.3
 ```
 
 Runtime tag 和对应的 GitHub Release tgz 必须已发布，才能更新并提交 Plugin 锁文件。未发布到可访问地址的源码只能用于本地联调。正式 Plugin 配置不得引用 staging Runtime；合并前应将 Runtime 更新为稳定版本并重新生成锁文件。随后执行完整校验：

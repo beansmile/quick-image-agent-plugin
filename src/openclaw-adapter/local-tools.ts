@@ -74,7 +74,7 @@ function createInspectTool(
   return {
     name: "quick_image_inspect_attachment",
     label: "检查 Quick Image 附件",
-    description: "检查当前 OpenClaw 会话附件，或检查宿主或 AI 根据用户意图提供的本地文件路径或媒体引用，返回不包含本地路径或附件字节的一次性句柄。此步骤不处理、不暂存、不上传附件。",
+    description: "检查当前 OpenClaw 会话附件，或检查宿主或 AI 根据用户意图提供的本地文件路径或媒体引用；仅读取基础文件信息和完成限制校验所需的技术元数据，不分析图片、音频或视频内容。返回不包含本地路径或附件字节的一次性句柄。此步骤不处理、不暂存、不上传附件。",
     parameters: {
       type: "object",
       additionalProperties: false,

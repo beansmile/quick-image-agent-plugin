@@ -18,7 +18,8 @@ afterEach(async () => {
 });
 
 describe("runtime:set", () => {
-  it.each(["v1.2.3", "v1.2.3-rc.1"])("同步 Runtime %s 的 Release tgz", async (tag) => {
+  it("同步 Runtime 稳定版本的 Release tgz", async () => {
+    const tag = "v1.2.3";
     const root = await createFixture();
     const expected =
       `https://github.com/beansmile/quick-image-agent-runtime/releases/download/${tag}/` +
@@ -35,10 +36,10 @@ describe("runtime:set", () => {
     expect(codexMcp.mcpServers["quick-image-local"].args[2]).toBe(expected);
   });
 
-  it.each(["main", "v01.2.3", "v1.2.3-01"])("拒绝浮动分支或不规范版本 %s", async (tag) => {
+  it.each(["main", "v01.2.3", "v1.2.3-rc.1", "v1.2.3-01"])("拒绝浮动分支或不规范版本 %s", async (tag) => {
     const root = await createFixture();
     await expect(execFileAsync(process.execPath, [script, tag], { cwd: root })).rejects.toThrow(
-      "v<major>.<minor>.<patch>[-<prerelease>]"
+      "v<major>.<minor>.<patch>"
     );
   });
 });
