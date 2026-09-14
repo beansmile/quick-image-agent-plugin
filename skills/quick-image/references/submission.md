@@ -11,10 +11,10 @@
    - 高清：`estimate_upscale_credits` 或 `quick_image_estimate_upscale_credits`，传 `pricing` 和 `input_count`。
    - 视频：`estimate_video_credits` 或 `quick_image_estimate_video_credits`，传完整 `pricing`、`output_duration_seconds` 和输入视频总时长；没有视频输入时 `input_video_duration_seconds` 传 `null`。
 3. 工具名已经确定能力，不传 `capability`，不调用其他能力估价工具，不自行选择价格来源、拼接价格字段、计算积分或修正工具结果。
-4. 只使用工具返回的 `estimated_credits`、`estimated_output_count`、`calculation` 和 `confirmation_reasons`。展示输入摘要、完整解析参数、简明计算依据、预计积分和余额影响，并等待用户明确确认。报价摘要末尾写明：如需调整参数，直接告诉我；确认无误请回复“确认生成”。
+4. 只使用工具返回的 `estimated_credits`、`estimated_output_count`、`calculation` 和 `confirmation_reasons`。单个任务展示输入摘要、完整解析参数、简明计算依据、预计积分和余额影响。用户一次提出多个任务时，分别展示每个任务的报价，并可补充预计总积分；参数全部明确后，可以等待一次覆盖全部任务的明确确认，不要求逐项重复确认。报价摘要末尾写明：如需调整参数，直接告诉我；确认无误请回复“确认生成”或“确认全部生成”。
 5. 将预计积分与 `account.available_credits` 比较；余额不足时立即停止，不得上传附件，也不得提交任务。
 6. 配置不完整、媒体元数据无法读取、工具拒绝价格候选或预计价格不是有限正数时停止；不得自行回退、猜测价格或继续上传。
-7. `confirmation_reasons` 非空时必须针对列出的原因取得额外明确确认。
+7. `confirmation_reasons` 非空时必须针对列出的原因取得额外明确确认；批量确认必须明确覆盖所有列出的任务和原因。
 
 ## 用户确认后的上传
 
@@ -31,6 +31,8 @@
 - `account.available_credits` 只代表配置读取时的余额；提交时服务端会再次在扣费事务内检查余额。期间余额不足时停止当前任务流程并说明未创建任务，不能通过换幂等键绕过余额限制。
 - 本地报价始终只是预估，最终以任务创建成功后返回的 `charged_credits` 为准。
 - 每个新的逻辑生成请求生成一个 UUID v4 `idempotency_key`。按能力调用唯一对应的提交工具：搭配 `submit_lookbook_task`、换姿 `submit_pose_task`、高清 `submit_upscale_task`、视频 `submit_video_task`。arguments 中不得传 `capability`。
+- 批量确认不改变任务边界：每个任务都必须使用自己的报价参数、附件句柄和 UUID v4 `idempotency_key`，分别调用对应提交工具并分别发送创建状态；不得合并成一个请求或复用任一任务的幂等键。
+- 批量任务确认后，可以按宿主能力串行或并发准备、上传和提交；一个任务的准备、上传或提交失败时，只停止该任务并发送对应失败状态，继续处理其余已确认且校验通过的任务。只对返回 `retryable=true` 的任务按原参数和原幂等键重试。
 - 只传本地预估时保留的该能力完整业务参数和 `idempotency_key`。搭配只使用 `output_count`；换姿只使用 `output_count_per_person`，不得传 `output_count`；高清和视频不得传这两个图片数量字段。
 - 得到明确响应前保留该键和完全相同的参数。网络超时或响应丢失时原样重放；不得生成新键或声称任务失败。
 - 服务端明确返回 `retryable=true` 时，按 `retry_after` 等待后使用当前阶段允许的原参数、原句柄或原幂等键重试；不得因重试创建新的逻辑任务。
