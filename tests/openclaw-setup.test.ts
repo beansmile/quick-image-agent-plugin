@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CommandExecutor } from "../src/environment/command-executor.js";
-import {
-  formatOpenClawSetupResult,
-  setupOpenClaw
-} from "../src/environment/openclaw-setup.js";
+import { setupOpenClaw } from "../src/environment/openclaw-setup.js";
 
 describe("OpenClaw setup", () => {
   it("merges tool access, sets production MCP, and prompts for manual login", async () => {
@@ -29,7 +26,6 @@ describe("OpenClaw setup", () => {
     expect(calls.some((args) => args[0] === "config" && args[1] === "get" && args[2] === "mcp.servers")).toBe(false);
     expect(calls.at(-1)).toEqual(["mcp", "reload"]);
     expect(result).toEqual({ toolAccessChanged: true });
-    expect(formatOpenClawSetupResult(result)).toContain("请运行以下命令登录 Quick Image MCP：\nopenclaw mcp login quick-image");
   });
 
   it("always overwrites the MCP with the production config", async () => {

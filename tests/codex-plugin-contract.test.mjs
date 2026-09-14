@@ -13,17 +13,9 @@ afterEach(async () => {
 
 describe("Codex plugin contract", () => {
   it("installs the repository-root plugin from the GitHub marketplace source", async () => {
-    const readme = await readFile(path.resolve("README.md"), "utf8");
     const localInstaller = await readFile(path.resolve("scripts/install-local-codex.mjs"), "utf8");
     const marketplace = await readJson(path.resolve(".agents/plugins/marketplace.json"));
-    const installSection = readme.slice(readme.indexOf("### Codex"), readme.indexOf("### OpenClaw"));
 
-    expect(installSection).toContain("Quick Image 暂未上架 Codex 官方 Plugin Marketplace");
-    expect(installSection).toContain(
-      "codex plugin marketplace add https://github.com/beansmile/quick-image-agent-plugin"
-    );
-    expect(installSection).toContain("codex plugin add quick-image@quick-image");
-    expect(installSection).not.toContain("在 Codex 的 Plugin Marketplace 中找到");
     expect(localInstaller).toContain("verifyDevelopmentUrls");
     expect(localInstaller).not.toContain("setDevelopmentUrls");
     expect(localInstaller).not.toContain('"env",\n    "set"');

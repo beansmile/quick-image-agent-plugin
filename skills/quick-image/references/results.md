@@ -10,6 +10,13 @@
 - 展示任务返回的 `model.display_name`。`model.id` 和 `model.version` 仅用于内部识别，不得显示给用户，也不得展示或推测内部供应商路由。
 - `missing_task_ids` 中的任务不存在或不属于当前账号，不要继续轮询这些 ID，也不要猜测其状态。
 
+## 宿主中断后的恢复
+
+- 用户、宿主或 Agent 中断当前轮询时，只停止本地等待；不得调用取消接口，也不得把上一任务标记为失败。服务端任务仍可继续运行，后续可以用原 `task_id` 查询。
+- 中断后用户提交新的生成请求时，将其视为新的逻辑任务：重新按 [SKILL.md](../SKILL.md) 的阶段顺序发现工具、读取配置、报价并取得确认，不要等待上一任务终态，也不要复用上一任务的幂等键、报价或附件句柄。
+- 不要因为“上一轮被打断”、工具上下文重置、查询失败或会话恢复提示，就自行判断 OAuth 已失效。只有当前调用明确返回 `401`、`requires OAuth authorization` 或 `OAuth credentials are not authorized` 等授权信号时，才读取 [auth.md](auth.md) 并进入授权流程。
+- 若新任务提交成功，立即发送新的任务创建状态；上一任务是否完成可以在用户要求时用原 `task_id` 单独查询，不能阻塞新任务或触发重复提交。
+
 ## OpenClaw Cron
 
 - OpenClaw 提交成功并发送创建状态后，立即且只创建一个 recurring cron 负责该任务，不要在当前 Agent turn 自行循环，也不要使用 heartbeat 或 `sessions_yield`。
