@@ -11,9 +11,9 @@ Quick Image Agent Plugin 为 Codex 和 OpenClaw 提供同一份生成 Skill 与�
 - 插件支持搭配出图、换姿、高清和视频生成。
 - 生成前通过远程 MCP 获取公开配置并在本地预估报价，用户确认后才上传。
 - 服务端负责鉴权、素材归属、最终校验、最终计价、扣费、幂等和任务状态。
-- 本地工具负责附件检查、准备、能力专用估价与暂存上传。检查阶段只保存路径、文件身份、校验和和媒体元数据，不复制附件字节。
+- 本地工具负责附件检查、准备、能力专用估价与暂存上传。媒体默认按不透明输入处理；检查阶段只读取基础文件信息和限制校验所需的技术元数据，保存路径、文件身份、校验和和媒体元数据，不做语义内容分析或复制附件字节。
 - 所有本地工具均不接受 Base64 或 Token。报价不上传、不扣费且不锁价。
-- 插件不提供图库浏览、任务取消、业务重试、结果删除或充值工具。
+- 插件不提供 Quick Image 云端图库浏览、任务取消、结果删除或充值工具；用户可以直接提供已知的 `asset_id`，由服务端校验归属和可用性。可按服务端 `retryable` 和 `retry_after` 处理当前请求的重试，不创建独立的重试任务。
 
 共享 Skill 的 `SKILL.md` 只保留核心生命周期、安全不变式和阶段路由；鉴权、附件、报价提交、结果轮询分别位于 `skills/quick-image/references/`，仅在进入对应阶段时读取，以减少不相关任务的上下文消耗。
 
@@ -133,21 +133,20 @@ npx --yes --prefer-online \
   quick-image env reset --host openclaw
 ```
 
-正式环境安装使用 `openclaw quick-image setup`。该命令合并 `tools.alsoAllow`、使用正式环境配置覆盖同名 MCP，并在基础配置成功后执行 `mcp reload` 以加载配置，避免重启 Gateway 中断当前会话。它不会在 setup 进程内启动 OAuth，而是在完成后输出登录命令；Agent 可以继续执行远程授权流程。
+正式环境安装使用 `openclaw quick-image setup`。该命令合并 `tools.alsoAllow`、使用正式环境配置覆盖同名 MCP，并在基础配置成功后执行 `mcp reload`。安装或更新完成后仍需执行 `openclaw gateway restart`，以加载新安装的 Plugin；Gateway 恢复后再继续远程授权流程。`setup` 不会在进程内启动 OAuth，而是在完成后输出登录命令。
 
-远程工具调用失败时，Agent 应先执行 `openclaw mcp doctor --probe quick-image --json` 做连接与 OAuth 探测。输出 `requires OAuth authorization`、`OAuth credentials are not authorized`、OAuth 原因的 `probe failed` 等信号时，应将其视为当前未登录/授权失效，即使业务工具尚未被调用；输出 DNS、超时、连接拒绝等明确网络错误时，按连接故障处理；没有 `quick-image` server 时，先重新安装或启用插件。Agent 确认未登录后，应先告知用户并询问是否需要登录；用户确认后，执行第一条命令并把授权链接发给用户，同时提醒用户不要泄露授权码或在非私聊会话中发送。用户在手机浏览器批准后，只把一次性授权码发回；Agent 校验其为单个安全 code 后，将其作为 `--code` 的单个参数执行第二条命令。登录成功后，Agent 无需再次确认，立即执行 `openclaw gateway restart` 使配置和凭据生效；该操作可能中断当前回复，Gateway 恢复后如会话仍可继续再报告结果。无法安全执行固定命令时，回退为用户手动执行：
+远程工具调用失败时，Agent 应先执行 `openclaw mcp doctor --probe quick-image --json` 做连接与 OAuth 探测。输出 `requires OAuth authorization`、`OAuth credentials are not authorized`、OAuth 原因的 `probe failed` 等信号时，应将其视为当前未登录/授权失效，即使业务工具尚未被调用；输出 DNS、超时、连接拒绝等明确网络错误时，按连接故障处理；没有 `quick-image` server 时，先重新安装或启用插件。Agent 确认未登录后，应先告知用户并询问是否需要登录；用户确认后，执行第一条命令并把授权链接发给用户，同时提醒用户不要泄露授权码或在非私聊会话中发送。用户在手机浏览器批准后，只把一次性授权码发回；Agent 校验其为单个安全 code 后，将其作为 `--code` 的单个参数执行第二条命令。登录成功后无需重启 Gateway；Agent 应提示用户在当前对话中发送 `/reset` 重置会话上下文，不要替用户执行。无法安全执行固定命令时，回退为用户手动执行：
 
 ```bash
 openclaw mcp login quick-image
 openclaw mcp login quick-image --code '<code>'
-openclaw gateway restart
 ```
 
-Agent 不以 owner 验证或会话类型作为远程授权前置条件，但必须提醒用户不要泄露一次性 code 或在非私聊会话中发送；不允许 Agent 接受完整命令或其他 Shell 内容，Token 始终由 OpenClaw OAuth 存储管理且不得进入对话。执行带授权码的登录命令后重启 Gateway，下一轮对话会加载报价和生成工具；`openclaw mcp probe quick-image` 仅用于连接故障排查。
+Agent 不以 owner 验证或会话类型作为远程授权前置条件，但必须提醒用户不要泄露一次性 code 或在非私聊会话中发送；不允许 Agent 接受完整命令或其他 Shell 内容，Token 始终由 OpenClaw OAuth 存储管理且不得进入对话。执行带授权码的登录命令后无需重启 Gateway；应建议用户发送 `/reset`，避免安装和登录过程的上下文影响后续 Quick Image 任务。`openclaw mcp probe quick-image` 仅用于连接故障排查。
 
 ## OpenClaw 适配契约
 
-OpenClaw 原生 manifest 不负责导入 MCP 配置。正式安装流程必须登记唯一的远程 MCP，完成登录后重启 Gateway 以加载配置和凭据。
+OpenClaw 原生 manifest 不负责导入 MCP 配置。正式安装流程必须登记唯一的远程 MCP，并在安装或更新完成后重启 Gateway 以加载新安装的 Plugin；完成登录后无需再次重启。
 
 Runtime Release tgz 中的 Doctor 是可选安装验证与故障排查工具，不是插件启用前置条件。Quick Image 不注册会话内容 Hook 或 owner 专属 Trusted Tool Policy，也不在原生运行时额外限制私聊或群聊。共享 Skill 要求 Agent 根据当前会话上下文仅执行 owner 发出的 Quick Image 生成指令，但远程授权流程不以 owner 验证或会话类型作为前置条件，只负责提示 code 保密。这些都属于模型行为约束，不构成原生运行时安全边界。实际访问范围仍由 OpenClaw 自身的渠道访问策略和工具策略决定；Doctor 只检查 Quick Image 原生工具是否被当前工具策略开放。
 
@@ -161,11 +160,11 @@ OpenClaw 提交成功后创建一个每 30 秒运行的 `isolated agentTurn` rec
 
 ## 附件适配契约
 
-Codex 通过 `inspect_attachment` 检查当前对话明确提供的绝对路径，并将该工具设为逐次审批。OpenClaw 原生适配层从 `message_received` 获取宿主可信的媒体路径，持久化为会话附件 ID；`quick_image_list_attachments` 默认返回当前会话最近 10 个候选并按上传时间从旧到新排列，同时用 `has_more` 标识是否还有更早候选。模型根据对话语境选定后再将对应 ID 交给 `quick_image_inspect_attachment`，不会接触本地路径或历史 `media://` 引用。
+宿主或 AI 可以根据用户意图解析路径、浏览目录或搜索文件，并将确定的本地文件绝对路径或 Runtime 支持的媒体引用传给 Quick Image 本地工具。插件信任调用方提供的具体输入，不校验来源或另行实施目录授权；实际可读范围由宿主进程的系统文件权限和 Runtime 的引用解析规则决定。OpenClaw 原生适配层仍从 `message_received` 获取会话媒体路径，持久化为与会话绑定的附件 ID，供模型发现和引用当前会话附件；已知的 `media://` 引用也可以直接传入。`quick_image_list_attachments` 默认返回当前会话最近 10 个候选并按上传时间从旧到新排列，同时用 `has_more` 和 `next_cursor` 分页读取更早候选。模型根据用户意图选定文件后，再将绝对路径、媒体引用或对应 ID 交给 Quick Image 本地工具。
 
-附件检查会校验普通文件、真实媒体格式、大小和时长，计算 SHA-256，并在权限为 `0700/0600` 的私有状态区记录路径、文件身份和媒体元数据；不会保存附件字节。用户确认报价后，Codex 的 `prepare_attachment` 或 OpenClaw 的 `quick_image_prepare_attachment` 使用一次性 `attachment_handle` 重新读取原文件并比对身份与校验和，图片此时才使用 `sharp` 自动旋转、缩放和压缩，最终字节写入私有暂存区。所有返回值都不包含原始路径。
+附件检查会校验普通文件、真实媒体格式、大小和时长，计算 SHA-256，并在权限为 `0700/0600` 的私有状态区记录路径、文件身份和媒体元数据；默认不进行图片、音频或视频语义分析，也不会保存附件字节。这里的校验和读取仅用于完整性校验，不代表内容分析。用户确认报价后，Codex 的 `prepare_attachment` 或 OpenClaw 的 `quick_image_prepare_attachment` 使用一次性 `attachment_handle` 重新读取原文件并比对身份与校验和，图片此时才使用 `sharp` 自动旋转、缩放和压缩，最终字节写入私有暂存区。所有返回值都不包含原始路径。
 
-检查记录、OpenClaw 附件引用和暂存记录默认有效 24 小时。成功准备会消费检查记录，成功上传会删除暂存文件；后台每 10 分钟清理过期句柄，进程启动时再执行一次兜底清理。原文件在报价后变化、删除或不可读取时必须重新检查并重新报价。
+OpenClaw 附件发现索引不复用处理句柄的 TTL，在源文件仍可读取期间保留，并将每个 session 限制为最近 500 条；OpenClaw 配置 `media.ttlHours` 后，宿主删除过期源文件，索引会在下次列表或每 10 分钟的定时清理中同步移除。检查记录和暂存记录仍默认有效 24 小时。成功准备会消费检查记录，成功上传会删除暂存文件；进程启动时再执行一次兜底清理。原文件在报价后变化、删除或不可读取时必须重新检查并重新报价。
 
 ## 上传域名
 
@@ -179,11 +178,23 @@ QUICK_IMAGE_UPLOAD_HOSTS=<official-upload-host>,*.<official-upload-host>
 
 ## 开发与发布校验
 
-发布新的 Runtime 后，用一个命令同步 Plugin 依赖和两份 MCP 清单中的 Runtime Release tgz。环境 CLI 也必须使用同一个已审核的 Runtime Release tgz。正式环境使用稳定版本；staging 可使用 `v0.2.0-rc.1` 这类 GitHub Prerelease：
+发布新的 Runtime 后，用一个命令同步 Plugin 依赖和两份 MCP 清单中的 Runtime Release tgz。环境 CLI 也必须使用同一个已审核的 Runtime Release tgz。Plugin 和 Runtime 均只允许使用 `major.minor.patch` 格式的稳定版本，不允许 prerelease：
 
 ```bash
-pnpm runtime:set v<major>.<minor>.<patch>[-<prerelease>]
+pnpm runtime:set v<major>.<minor>.<patch>
 pnpm install --lockfile-only
+```
+
+发布新的 Plugin 版本时，用一个命令同步 Plugin manifest 和两份 MCP 清单中的版本 header：
+
+```bash
+pnpm plugin:set <major>.<minor>.<patch>
+```
+
+例如：
+
+```bash
+pnpm plugin:set 0.1.3
 ```
 
 Runtime tag 和对应的 GitHub Release tgz 必须已发布，才能更新并提交 Plugin 锁文件。未发布到可访问地址的源码只能用于本地联调。正式 Plugin 配置不得引用 staging Runtime；合并前应将 Runtime 更新为稳定版本并重新生成锁文件。随后执行完整校验：

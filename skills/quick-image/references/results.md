@@ -67,5 +67,5 @@
 - 用户询问历史时调用 `list_generation_tasks`，只展示每个任务返回的 `model.display_name`；用户选定任务后，将已知 `task_id` 分成每组最多 20 个调用 `get_generation_tasks` 查询完整状态和结果。
 - 按当前对话语言解释稳定错误码，保留原始语义、`retryable` 和 `retry_after`。
 - 遇到 `429` 按 `Retry-After` 等待，不高频重试。
-- 调用 Quick Image MCP 工具失败且错误码为 `upgrade_required` 时，停止新的上传和提交，读取 [version.md](version.md)，先征得用户同意后按当前宿主的固定流程升级；升级完成并重新加载 Skill/MCP 后再重试原请求。
+- 调用 Quick Image MCP 工具失败且错误码为 `upgrade_required` 时，停止新的上传和提交，读取 [version.md](version.md)，通过 `get_agent_plugin_installation_plan` 获取当前宿主的升级计划；征得用户同意并完成升级、重新加载 Skill/MCP 后再重试原请求。
 - 余额不足、素材失效或参数失效时不提交；根据服务端错误停止或重新预估。

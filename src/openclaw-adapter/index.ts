@@ -168,6 +168,11 @@ export function createListAttachmentsTool(
           minimum: 1,
           maximum: 20,
           description: "最多返回的附件数量，默认 10。"
+        },
+        cursor: {
+          type: "string",
+          pattern: "^qio_[A-Za-z0-9_-]{43}$",
+          description: "可选；上一页返回的 next_cursor，用于继续读取更早的附件。"
         }
       }
     },
@@ -177,7 +182,8 @@ export function createListAttachmentsTool(
       await pendingRegistrations.get(context.sessionKey);
       const result = await registry.listCandidates(context.sessionKey, {
         ...(parameters.message_id ? { messageId: parameters.message_id } : {}),
-        ...(parameters.limit ? { limit: parameters.limit } : {})
+        ...(parameters.limit ? { limit: parameters.limit } : {}),
+        ...(parameters.cursor ? { cursor: parameters.cursor } : {})
       });
       return {
         content: [{
@@ -189,10 +195,10 @@ export function createListAttachmentsTool(
               media_type: attachment.media_type ?? null,
               message_id: attachment.message_id ?? null,
               position: attachment.position,
-              received_at: attachment.received_at,
-              expires_at: attachment.expires_at
+              received_at: attachment.received_at
             })),
-            has_more: result.has_more
+            has_more: result.has_more,
+            next_cursor: result.next_cursor ?? null
           })
         }]
       };
@@ -228,10 +234,10 @@ function parsePreviewParameters(value: unknown): PreviewParameters {
   return { display_url: displayUrl, download_url: downloadUrl, media_kind: value.media_kind };
 }
 
-function parseListParameters(value: unknown): { message_id?: string; limit?: number } {
+function parseListParameters(value: unknown): { message_id?: string; limit?: number; cursor?: string } {
   if (value === undefined || value === null) return {};
   if (!isObject(value)) throw new Error("附件查询参数无效。");
-  const result: { message_id?: string; limit?: number } = {};
+  const result: { message_id?: string; limit?: number; cursor?: string } = {};
   if (value.message_id !== undefined) {
     if (typeof value.message_id !== "string" || value.message_id.length > 512) {
       throw new Error("message_id 无效。");
@@ -243,6 +249,12 @@ function parseListParameters(value: unknown): { message_id?: string; limit?: num
       throw new Error("limit 必须是 1 到 20 的整数。");
     }
     result.limit = value.limit as number;
+  }
+  if (value.cursor !== undefined) {
+    if (typeof value.cursor !== "string" || !/^qio_[A-Za-z0-9_-]{43}$/.test(value.cursor)) {
+      throw new Error("cursor 必须是有效的附件分页游标。");
+    }
+    result.cursor = value.cursor;
   }
   return result;
 }
@@ -336,7 +348,7 @@ const plugin = {
     api.registerTool((context) => createPreviewTool(api, context), { name: PREVIEW_TOOL_NAME });
 
     const cleanupTimer = setInterval(() => {
-      const cleanupTasks = [registry.cleanupExpired()];
+      const cleanupTasks = [registry.cleanupUnavailable()];
       if (pipelinePromise) cleanupTasks.push(pipelinePromise.then((pipeline) => pipeline.cleanupExpired()));
       void Promise.all(cleanupTasks).catch(() => {
         process.stderr.write(`${JSON.stringify({ code: "ATTACHMENT_CLEANUP_FAILED" })}\n`);
