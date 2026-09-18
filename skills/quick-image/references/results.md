@@ -14,7 +14,7 @@
 
 - 用户、宿主或 Agent 中断当前轮询时，只停止本地等待；不得调用取消接口，也不得把上一任务标记为失败。服务端任务仍可继续运行，后续可以用原 `task_id` 查询。
 - 中断后用户提交新的生成请求时，将其视为新的逻辑任务：重新按 [SKILL.md](../SKILL.md) 的阶段顺序发现工具、读取配置、报价并取得确认，不要等待上一任务终态，也不要复用上一任务的幂等键、报价或附件句柄。
-- 不要因为“上一轮被打断”、工具上下文重置、查询失败或会话恢复提示，就自行判断 OAuth 已失效。只有当前调用明确返回 `401`、`requires OAuth authorization` 或 `OAuth credentials are not authorized` 等授权信号时，才读取 [auth.md](auth.md) 并进入授权流程。
+- 不要因为“上一轮被打断”、工具上下文重置、查询失败或会话恢复提示，就自行判断 OAuth 已失效。轮询或查询返回认证或授权类提示时，先按 [auth.md](auth.md) 第 0 节等待 5 秒后重试一次；只有重试仍失败时，才读取 [auth.md](auth.md) 并进入授权流程。
 - 若新任务提交成功，立即发送新的任务创建状态；上一任务是否完成可以在用户要求时用原 `task_id` 单独查询，不能阻塞新任务或触发重复提交。
 
 ## OpenClaw Cron
@@ -23,9 +23,10 @@
 - cron 必须使用 `sessionTarget="isolated"`、`payload.kind="agentTurn"`、30 秒固定间隔和当前会话推断出的 `announce` 投递路由；不得创建 `main + systemEvent` 或一次性任务。
 - `payload.toolsAllow` 只包含 `quick-image__get_generation_tasks`、`quick_image_send_preview` 和 `cron`。轮询消息必须写入固定的 `task_id`、能力和等待上限，并要求每次运行严格执行：
   1. 调用 `quick-image__get_generation_tasks` 查询该任务。
-  2. 状态为 `queued` 或 `processing` 且未超时，最终只返回 `NO_REPLY`。
-  3. 状态为 `succeeded`、`partial_succeeded` 或 `failed`，或任务缺失、达到等待上限时，先完成结果发送或错误说明，再调用 `cron(action="list")` 取得当前 isolated cron 唯一可见的自身任务，并调用 `cron(action="remove", jobId="<自身任务 ID>")` 删除自身；不得继续轮询。
-  4. 成功结果逐个调用 `quick_image_send_preview`；全部媒体发送成功且无需补充失败说明时最终返回 `NO_REPLY`，否则通过 cron 的 `announce` 最终回复说明部分失败、生成失败、查询失败或等待超时。
+  2. 调用返回认证或授权类提示时，先等待 5 秒再用原参数重试一次；重试成功按下面规则正常处理，仍失败才归为查询失败。
+  3. 状态为 `queued` 或 `processing` 且未超时，最终只返回 `NO_REPLY`。
+  4. 状态为 `succeeded`、`partial_succeeded` 或 `failed`，或任务缺失、达到等待上限时，先完成结果发送或错误说明，再调用 `cron(action="list")` 取得当前 isolated cron 唯一可见的自身任务，并调用 `cron(action="remove", jobId="<自身任务 ID>")` 删除自身；不得继续轮询。
+  5. 成功结果逐个调用 `quick_image_send_preview`；全部媒体发送成功且无需补充失败说明时最终返回 `NO_REPLY`，否则通过 cron 的 `announce` 最终回复说明部分失败、生成失败、查询失败或等待超时。
 - OpenClaw recurring cron 使用以下结构，尖括号内容替换为本次任务的实际值；同一 `task_id` 不得重复创建：
 
 ```json
@@ -73,6 +74,7 @@
 
 - 用户询问历史时调用 `list_generation_tasks`，只展示每个任务返回的 `model.display_name`；用户选定任务后，将已知 `task_id` 分成每组最多 20 个调用 `get_generation_tasks` 查询完整状态和结果。
 - 按当前对话语言解释稳定错误码，保留原始语义、`retryable` 和 `retry_after`。
+- 工具调用返回需要授权、认证失败一类宿主认证提示（具体文案可能随宿主版本变化）时，多为宿主凭证刚过期的瞬时现象：等待 5 秒后用原参数重试一次该调用，成功则继续正常流程；重试仍失败才读取 [auth.md](auth.md) 进入授权流程，首次出现时不要引导用户重新登录。
 - 遇到 `429` 按 `Retry-After` 等待，不高频重试。
 - 调用 Quick Image MCP 工具失败且错误码为 `upgrade_required` 时，停止新的上传和提交，读取 [version.md](version.md)，通过 `get_agent_plugin_installation_plan` 获取当前宿主的升级计划；征得用户同意并完成升级、重新加载 Skill/MCP 后再重试原请求。
 - 余额不足、素材失效或参数失效时不提交；根据服务端错误停止或重新预估。
