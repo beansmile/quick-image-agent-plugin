@@ -22,7 +22,7 @@ description: 使用 Quick Image 对当前会话附件或宿主可访问的本地
 
 - MCP 无法连接、不可调用、未出现在工具列表或在启动/发现阶段失败。
 - `get_generation_config` 无法调用，导致无法读取实时模板、模型或价格配置。
-- 宿主或远程服务返回 `401`、`requires OAuth authorization`、`OAuth credentials are not authorized` 等授权信号。
+- 宿主或远程服务返回 `401`、`requires OAuth authorization`、`OAuth credentials are not authorized` 等授权信号（具体文案可能随宿主版本变化）。其中会话中途单次出现的认证类提示多为宿主凭证刚过期，先按 [auth.md](references/auth.md) 第 0 节等待 5 秒后重试一次；重试成功则继续流程，不进入授权流程。
 
 不得把上述情况改写成“无法可靠列出模板”后直接结束，也不得猜测模板、继续报价、上传或提交任务。状态检查、网络故障分类、用户确认和 Codex/OpenClaw 登录命令全部按 [auth.md](references/auth.md) 执行；用户确认前不得执行登录命令。
 
