@@ -5,6 +5,8 @@ import {
   assertSupportedRuntime,
   AttachmentPipeline,
   HANDLE_CLEANUP_INTERVAL_MS,
+  PluginError as PluginError3,
+  PreviewDownloadService,
   resolveOpenClawAttachmentRegistryDirectory
 } from "quick-image-agent-runtime";
 
@@ -760,16 +762,17 @@ var PREVIEW_MIME_EXTENSIONS = {
   "video/webm": ".webm",
   "video/x-msvideo": ".avi"
 };
-function previewFileName(parameters) {
-  if (!parameters.preview_content_type) return void 0;
-  const extension = PREVIEW_MIME_EXTENSIONS[parameters.preview_content_type];
+function previewFileName(parameters, detectedContentType) {
+  const contentType = parameters.media_kind === "image" && detectedContentType ? detectedContentType : parameters.preview_content_type;
+  if (!contentType) return void 0;
+  const extension = PREVIEW_MIME_EXTENSIONS[contentType];
   return extension ? `quick-image-${parameters.media_kind}-${randomBytes2(6).toString("hex")}${extension}` : void 0;
 }
-function createPreviewTool(api, context) {
+function createPreviewTool(api, context, previewDownloads) {
   return {
     name: PREVIEW_TOOL_NAME,
     label: "\u53D1\u9001 Quick Image \u9884\u89C8",
-    description: "\u5C06 Quick Image \u6210\u529F\u4EFB\u52A1\u7684\u9884\u89C8\u5A92\u4F53\u53D1\u9001\u5230\u5F53\u524D OpenClaw \u4F1A\u8BDD\uFF0C\u5E76\u9644\u4E0A\u539F\u6587\u4EF6\u4E0B\u8F7D\u94FE\u63A5\u3002",
+    description: "\u5C06 Quick Image \u6210\u529F\u4EFB\u52A1\u7684\u9884\u89C8\u5A92\u4F53\u53D1\u9001\u5230\u5F53\u524D OpenClaw \u4F1A\u8BDD\uFF0C\u5E76\u9644\u4E0A\u539F\u6587\u4EF6\u4E0B\u8F7D\u94FE\u63A5\uFF1B\u56FE\u7247\u9884\u89C8\u7531\u672C\u5730\u8FD0\u884C\u65F6\u53D7\u7EA6\u675F\u4E0B\u8F7D\u540E\u4EE5\u672C\u5730\u6587\u4EF6\u6295\u9012\uFF0C\u89C6\u9891\u9884\u89C8\u76F4\u63A5\u4F7F\u7528\u7ED3\u679C\u5730\u5740\u6295\u9012\u3002",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -793,46 +796,94 @@ function createPreviewTool(api, context) {
           type: "string",
           maxLength: 100,
           pattern: "^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}$",
-          description: "\u540C\u4E00\u4EFB\u52A1\u7ED3\u679C\u8FD4\u56DE\u7684 preview_content_type\uFF08\u9884\u89C8\u6295\u9012\u5185\u5BB9\u7684 MIME \u7C7B\u578B\uFF09\uFF1B\u7528\u4E8E\u8BA9\u804A\u5929\u6E20\u9053\u6309\u56FE\u7247\u6216\u89C6\u9891\u800C\u4E0D\u662F\u6587\u4EF6\u5C55\u793A\u9884\u89C8\u3002"
+          description: "\u540C\u4E00\u4EFB\u52A1\u7ED3\u679C\u8FD4\u56DE\u7684 preview_content_type\uFF08\u9884\u89C8\u6295\u9012\u5185\u5BB9\u7684 MIME \u7C7B\u578B\uFF09\u3002\u89C6\u9891\u9884\u89C8\u7528\u5B83\u6620\u5C04\u5E26\u6269\u5C55\u540D\u7684\u6587\u4EF6\u540D\uFF1B\u56FE\u7247\u9884\u89C8\u4EE5\u672C\u5730\u4E0B\u8F7D\u68C0\u6D4B\u51FA\u7684\u683C\u5F0F\u4E3A\u51C6\uFF0C\u8BE5\u5B57\u6BB5\u4EC5\u4F5C\u53C2\u8003\u3002"
         }
       },
       required: ["display_url", "download_url", "media_kind"]
     },
     async execute(_toolCallId, rawParameters) {
-      const parameters = parsePreviewParameters(rawParameters);
-      const route = context.deliveryContext;
-      if (!route?.channel || !route.to) {
-        throw new Error("\u5F53\u524D OpenClaw \u4F1A\u8BDD\u6CA1\u6709\u53EF\u7528\u7684\u6D88\u606F\u6295\u9012\u76EE\u6807\u3002");
+      try {
+        return await executePreview(api, context, previewDownloads, rawParameters);
+      } catch (error) {
+        if (error instanceof PluginError3) {
+          return {
+            content: [{ type: "text", text: JSON.stringify(error.toPublicObject()) }],
+            isError: true
+          };
+        }
+        throw error;
       }
-      const adapter = await api.runtime.channel.outbound.loadAdapter(route.channel);
-      if (!adapter) throw new Error(`\u5F53\u524D\u6D88\u606F\u6E20\u9053\u4E0D\u652F\u6301\u539F\u751F\u5A92\u4F53\u6295\u9012\uFF1A${route.channel}`);
-      const cfg = context.getRuntimeConfig?.() ?? context.runtimeConfig ?? context.config ?? api.config;
-      const text = parameters.media_kind === "video" ? `Quick Image \u89C6\u9891\u751F\u6210\u5B8C\u6210
-\u4E0B\u8F7D\u539F\u89C6\u9891\uFF1A${parameters.download_url}` : `Quick Image \u56FE\u7247\u751F\u6210\u5B8C\u6210
-\u4E0B\u8F7D\u539F\u56FE\uFF1A${parameters.download_url}`;
-      const fileName = previewFileName(parameters);
-      const outboundContext = {
-        cfg,
-        to: route.to,
-        text,
-        mediaUrl: parameters.display_url,
-        ...fileName ? { fileName } : {},
-        ...route.accountId ? { accountId: route.accountId } : {},
-        ...route.threadId !== void 0 ? { threadId: route.threadId } : {}
-      };
-      const result = adapter.sendMedia ? await adapter.sendMedia(outboundContext) : adapter.sendPayload ? await adapter.sendPayload({
-        ...outboundContext,
-        payload: { text, mediaUrl: parameters.display_url }
-      }) : void 0;
-      if (!result) throw new Error(`\u5F53\u524D\u6D88\u606F\u6E20\u9053\u4E0D\u652F\u6301\u539F\u751F\u5A92\u4F53\u6295\u9012\uFF1A${route.channel}`);
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({ sent: true, channel: result.channel, message_id: result.messageId })
-        }]
-      };
     }
   };
+}
+async function executePreview(api, context, previewDownloads, rawParameters) {
+  const parameters = parsePreviewParameters(rawParameters);
+  const route = context.deliveryContext;
+  if (!route?.channel || !route.to) {
+    throw new Error("\u5F53\u524D OpenClaw \u4F1A\u8BDD\u6CA1\u6709\u53EF\u7528\u7684\u6D88\u606F\u6295\u9012\u76EE\u6807\u3002");
+  }
+  const adapter = await api.runtime.channel.outbound.loadAdapter(route.channel);
+  if (!adapter) throw new Error(`\u5F53\u524D\u6D88\u606F\u6E20\u9053\u4E0D\u652F\u6301\u539F\u751F\u5A92\u4F53\u6295\u9012\uFF1A${route.channel}`);
+  const cfg = context.getRuntimeConfig?.() ?? context.runtimeConfig ?? context.config ?? api.config;
+  if (parameters.media_kind === "video") {
+    return sendPreviewMedia(
+      parameters,
+      route,
+      adapter,
+      cfg,
+      parameters.display_url,
+      previewFileName(parameters)
+    );
+  }
+  try {
+    return await previewDownloads.withCachedPreview(parameters.display_url, async (file) => {
+      try {
+        return await sendPreviewMedia(parameters, route, adapter, cfg, file.filePath, previewFileName(parameters, file.contentType));
+      } catch (error) {
+        throw previewFailure("PREVIEW_SEND_FAILED", "\u9884\u89C8\u5A92\u4F53\u672C\u5730\u6295\u9012\u5931\u8D25", parameters.download_url, error);
+      }
+    });
+  } catch (error) {
+    if (error instanceof PluginError3 && error.code === "PREVIEW_SEND_FAILED") throw error;
+    throw previewFailure("PREVIEW_DOWNLOAD_FAILED", "\u9884\u89C8\u5A92\u4F53\u4E0B\u8F7D\u5931\u8D25", parameters.download_url, error);
+  }
+}
+async function sendPreviewMedia(parameters, route, adapter, cfg, mediaUrl, fileName) {
+  const text = parameters.media_kind === "video" ? `Quick Image \u89C6\u9891\u751F\u6210\u5B8C\u6210
+\u4E0B\u8F7D\u539F\u89C6\u9891\uFF1A${parameters.download_url}` : `Quick Image \u56FE\u7247\u751F\u6210\u5B8C\u6210
+\u4E0B\u8F7D\u539F\u56FE\uFF1A${parameters.download_url}`;
+  const outboundContext = {
+    cfg,
+    to: route.to,
+    text,
+    mediaUrl,
+    ...fileName ? { fileName } : {},
+    ...route.accountId ? { accountId: route.accountId } : {},
+    ...route.threadId !== void 0 ? { threadId: route.threadId } : {}
+  };
+  const result = adapter.sendMedia ? await adapter.sendMedia(outboundContext) : adapter.sendPayload ? await adapter.sendPayload({
+    ...outboundContext,
+    payload: { text, mediaUrl }
+  }) : void 0;
+  if (!result) throw new Error(`\u5F53\u524D\u6D88\u606F\u6E20\u9053\u4E0D\u652F\u6301\u539F\u751F\u5A92\u4F53\u6295\u9012\uFF1A${route.channel}`);
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify({
+        sent: true,
+        channel: result.channel,
+        message_id: result.messageId,
+        ...parameters.media_kind === "image" ? { delivered_via: "local_file" } : {}
+      })
+    }]
+  };
+}
+function previewFailure(code, summary, downloadUrl, cause) {
+  const detail = cause instanceof PluginError3 ? `${cause.code}\uFF1A${cause.message}` : cause instanceof Error ? cause.message : String(cause);
+  return new PluginError3(code, `${summary}\uFF08${detail}\uFF09\u3002`, {
+    retryable: false,
+    suggested_action: `\u4E0D\u8981\u91CD\u8BD5\u9884\u89C8\u53D1\u9001\uFF0C\u4E5F\u4E0D\u8981\u9000\u56DE Markdown \u56FE\u7247\uFF1B\u6539\u4E3A\u76F4\u63A5\u53D1\u9001\u539F\u56FE\u94FE\u63A5\u6587\u672C\uFF1A${downloadUrl}`
+  });
 }
 function createListAttachmentsTool(registry, pendingRegistrations, context) {
   return {
@@ -994,6 +1045,11 @@ var plugin = {
     registerOpenClawCli(api);
     const stateDirectory = resolveOpenClawAttachmentRegistryDirectory();
     const registry = new OpenClawAttachmentRegistry(stateDirectory);
+    const previewDownloads = new PreviewDownloadService(path4.join(stateDirectory, "preview-cache"));
+    void previewDownloads.initialize().catch(() => {
+      process.stderr.write(`${JSON.stringify({ code: "PREVIEW_CACHE_INIT_FAILED" })}
+`);
+    });
     let pipelinePromise;
     const getPipeline = () => {
       pipelinePromise ??= Promise.resolve().then(async () => {
@@ -1027,7 +1083,7 @@ var plugin = {
         return tool;
       }, { name: toolName });
     }
-    api.registerTool((context) => createPreviewTool(api, context), { name: PREVIEW_TOOL_NAME });
+    api.registerTool((context) => createPreviewTool(api, context, previewDownloads), { name: PREVIEW_TOOL_NAME });
     const cleanupTimer = setInterval(() => {
       const cleanupTasks = [registry.cleanupUnavailable()];
       if (pipelinePromise) cleanupTasks.push(pipelinePromise.then((pipeline) => pipeline.cleanupExpired()));
