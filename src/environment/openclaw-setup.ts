@@ -8,7 +8,7 @@ import {
 import { resolveOpenClawExecutable } from "./executables.js";
 
 const OPENCLAW_PLUGIN_ID = "quick-image";
-const MANUAL_LOGIN_COMMAND = "openclaw mcp login quick-image";
+const LOGIN_COMMAND = "openclaw mcp login quick-image";
 
 export interface OpenClawSetupResult {
   toolAccessChanged: boolean;
@@ -46,8 +46,8 @@ export function formatOpenClawSetupResult(result: OpenClawSetupResult): string {
     toolAccess,
     "已设置 Quick Image 正式环境 MCP。",
     "已重新加载 MCP 配置。",
-    "请运行以下命令登录 Quick Image MCP：",
-    MANUAL_LOGIN_COMMAND
+    "如需登录 Quick Image MCP，无需用户手动执行命令：Agent 直接运行以下命令，从输出中提取授权链接发送给用户，再等待用户回传授权码（仅用户手动安装时才由用户在本机终端执行）：",
+    LOGIN_COMMAND
   ].join("\n") + "\n";
 }
 

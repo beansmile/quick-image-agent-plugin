@@ -628,7 +628,7 @@ function isExecutable(filePath) {
 
 // src/environment/openclaw-setup.ts
 var OPENCLAW_PLUGIN_ID = "quick-image";
-var MANUAL_LOGIN_COMMAND = "openclaw mcp login quick-image";
+var LOGIN_COMMAND = "openclaw mcp login quick-image";
 async function setupOpenClaw(options) {
   const openClawBin = resolveOpenClawExecutable(options.openClawBin);
   const executor = options.executor ?? systemCommandExecutor;
@@ -648,8 +648,8 @@ function formatOpenClawSetupResult(result) {
     toolAccess,
     "\u5DF2\u8BBE\u7F6E Quick Image \u6B63\u5F0F\u73AF\u5883 MCP\u3002",
     "\u5DF2\u91CD\u65B0\u52A0\u8F7D MCP \u914D\u7F6E\u3002",
-    "\u8BF7\u8FD0\u884C\u4EE5\u4E0B\u547D\u4EE4\u767B\u5F55 Quick Image MCP\uFF1A",
-    MANUAL_LOGIN_COMMAND
+    "\u5982\u9700\u767B\u5F55 Quick Image MCP\uFF0C\u65E0\u9700\u7528\u6237\u624B\u52A8\u6267\u884C\u547D\u4EE4\uFF1AAgent \u76F4\u63A5\u8FD0\u884C\u4EE5\u4E0B\u547D\u4EE4\uFF0C\u4ECE\u8F93\u51FA\u4E2D\u63D0\u53D6\u6388\u6743\u94FE\u63A5\u53D1\u9001\u7ED9\u7528\u6237\uFF0C\u518D\u7B49\u5F85\u7528\u6237\u56DE\u4F20\u6388\u6743\u7801\uFF08\u4EC5\u7528\u6237\u624B\u52A8\u5B89\u88C5\u65F6\u624D\u7531\u7528\u6237\u5728\u672C\u673A\u7EC8\u7AEF\u6267\u884C\uFF09\uFF1A",
+    LOGIN_COMMAND
   ].join("\n") + "\n";
 }
 function ensureToolAccess(openClawBin, executor) {
