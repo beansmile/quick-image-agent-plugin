@@ -156,9 +156,9 @@ Quick Image 结果 URL 是无扩展名的对象存储 key，部分渠道（如�
 
 ### 轮询契约
 
-OpenClaw 提交成功后创建一个每 30 秒运行的 `isolated agentTurn` recurring cron，仅允许调用 `quick-image__get_generation_tasks`、`quick_image_send_preview` 和 `cron`。任务仍在处理时静默返回 `NO_REPLY`；进入终态、查询不到任务或达到等待上限时发送结果并删除自身。
+OpenClaw 提交成功后创建一个每 30 秒运行的 `isolated agentTurn` recurring cron，仅允许调用 `quick-image__get_generation_tasks`、`quick_image_send_preview` 和 `cron`。任务仍在处理时静默返回 `NO_REPLY`；进入终态、查询不到任务或达到等待上限时发送结果并删除自身。cron 创建成功后需向用户补发固定提示`已转入后台监控，你可以继续和我对话，任务完成后我会自动发送结果。`作为执行路径的排查标记；cron 的 `delivery` 使用 `announce` 路由，能从当前会话上下文取得实际 `channel` 与 `to` 时必须写入实际值，取不到时只保留 `mode`，由宿主保留的会话路由推断投递目标。
 
-不得使用 `main + systemEvent`、一次性 cron、heartbeat 或 `sessions_yield` 代替轮询；cron 创建失败时才回退到当前 turn 内 `sleep 30` 后查询。其他宿主的轮询间隔同样为 30 秒。
+不得使用 `main + systemEvent`、一次性 cron、heartbeat 或 `sessions_yield` 代替轮询，也不得在当前 turn 内循环 `sleep` 阻塞会话。cron 创建失败时回退为后台计时器等待：`exec` 以 `background: true` 后台执行 `sleep 30; echo quick-image-timer` 后立即结束回合，命令产生输出或失败时由宿主完成唤醒，Agent 被唤醒后继续轮询，未到终态时静默续挂计时器；子代理会话没有后台完成唤醒，不得使用该回退。其他宿主的轮询间隔同样为 30 秒。
 
 ## 附件适配契约
 
