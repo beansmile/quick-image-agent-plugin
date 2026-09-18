@@ -152,6 +152,8 @@ Runtime Release tgz 中的 Doctor 是可选安装验证与故障排查工具，�
 
 内置适配层使用 `message_received` 登记入站媒体，并通过 `quick_image_list_attachments` 返回不含路径的附件 ID。`quick_image_send_preview` 只向当前会话的可信路由发送 Quick Image 预览，不接受任意渠道、收件人或消息正文。通用 `message` 工具不属于 Quick Image 所需权限。
 
+Quick Image 结果 URL 是无扩展名的对象存储 key，部分渠道（如飞书）的媒体投递依赖文件扩展名或下载时的 Content-Type 区分图片/视频消息与文件消息。`quick_image_send_preview` 因此接受任务结果返回的 `preview_content_type`（预览投递内容的 MIME；源文件类型另由 `content_type` 字段提供，仅用于下载场景），映射为带扩展名的 `fileName` 随 outbound 上下文传给渠道适配器；`preview_content_type` 缺失或无法映射时不带 `fileName`，行为与未增强时一致，兼容旧版服务端。视频没有独立预览变体，服务端返回的 `preview_content_type` 与源类型一致（`video/mp4`），预览即原视频投递。
+
 ### 轮询契约
 
 OpenClaw 提交成功后创建一个每 30 秒运行的 `isolated agentTurn` recurring cron，仅允许调用 `quick-image__get_generation_tasks`、`quick_image_send_preview` 和 `cron`。任务仍在处理时静默返回 `NO_REPLY`；进入终态、查询不到任务或达到等待上限时发送结果并删除自身。

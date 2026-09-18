@@ -1,4 +1,5 @@
 import path from "node:path";
+import { randomBytes } from "node:crypto";
 import {
   assertSupportedRuntime,
   AttachmentPipeline,
@@ -36,6 +37,7 @@ interface OutboundContext {
   to: string;
   text: string;
   mediaUrl: string;
+  fileName?: string;
   accountId?: string;
   threadId?: string | number;
 }
@@ -72,9 +74,36 @@ interface PreviewParameters {
   display_url: string;
   download_url: string;
   media_kind: "image" | "video";
+  preview_content_type?: string;
 }
 
-export function createPreviewTool(api: OpenClawPluginApi, context: OpenClawToolContext): OpenClawNativeTool {
+// 各聊天渠道的媒体投递普遍依赖文件扩展名或 Content-Type 区分“图片/视频消息”与“文件消息”。
+// Quick Image 的结果 URL 是无扩展名的对象存储 key，部分渠道（如飞书）会因此把媒体降级为文件卡片，
+// 因此用任务结果返回的 preview_content_type 给预览媒体显式标注带扩展名的文件名。
+const PREVIEW_MIME_EXTENSIONS: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/gif": ".gif",
+  "image/bmp": ".bmp",
+  "video/mp4": ".mp4",
+  "video/quicktime": ".mov",
+  "video/webm": ".webm",
+  "video/x-msvideo": ".avi"
+};
+
+function previewFileName(parameters: PreviewParameters): string | undefined {
+  if (!parameters.preview_content_type) return undefined;
+  const extension = PREVIEW_MIME_EXTENSIONS[parameters.preview_content_type];
+  return extension
+    ? `quick-image-${parameters.media_kind}-${randomBytes(6).toString("hex")}${extension}`
+    : undefined;
+}
+
+export function createPreviewTool(
+  api: OpenClawPluginApi,
+  context: OpenClawToolContext
+): OpenClawNativeTool {
   return {
     name: PREVIEW_TOOL_NAME,
     label: "发送 Quick Image 预览",
@@ -97,6 +126,12 @@ export function createPreviewTool(api: OpenClawPluginApi, context: OpenClawToolC
           type: "string",
           enum: ["image", "video"],
           description: "结果媒体类型。"
+        },
+        preview_content_type: {
+          type: "string",
+          maxLength: 100,
+          pattern: "^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}$",
+          description: "同一任务结果返回的 preview_content_type（预览投递内容的 MIME 类型）；用于让聊天渠道按图片或视频而不是文件展示预览。"
         }
       },
       required: ["display_url", "download_url", "media_kind"]
@@ -115,11 +150,13 @@ export function createPreviewTool(api: OpenClawPluginApi, context: OpenClawToolC
       const text = parameters.media_kind === "video"
         ? `Quick Image 视频生成完成\n下载原视频：${parameters.download_url}`
         : `Quick Image 图片生成完成\n下载原图：${parameters.download_url}`;
+      const fileName = previewFileName(parameters);
       const outboundContext: OutboundContext = {
         cfg,
         to: route.to,
         text,
         mediaUrl: parameters.display_url,
+        ...(fileName ? { fileName } : {}),
         ...(route.accountId ? { accountId: route.accountId } : {}),
         ...(route.threadId !== undefined ? { threadId: route.threadId } : {})
       };
@@ -231,7 +268,21 @@ function parsePreviewParameters(value: unknown): PreviewParameters {
   if (value.media_kind !== "image" && value.media_kind !== "video") {
     throw new Error("media_kind 必须是 image 或 video。");
   }
-  return { display_url: displayUrl, download_url: downloadUrl, media_kind: value.media_kind };
+  const previewContentType = parseOptionalContentType(value.preview_content_type, "preview_content_type");
+  return {
+    display_url: displayUrl,
+    download_url: downloadUrl,
+    media_kind: value.media_kind,
+    ...(previewContentType ? { preview_content_type: previewContentType } : {})
+  };
+}
+
+function parseOptionalContentType(value: unknown, field: string): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string" || value.length > 100 || !/^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}\/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}$/.test(value)) {
+    throw new Error(`${field} 必须是有效的 MIME 类型。`);
+  }
+  return value.toLowerCase();
 }
 
 function parseListParameters(value: unknown): { message_id?: string; limit?: number; cursor?: string } {

@@ -431,6 +431,83 @@ describe("OpenClaw native preview adapter", () => {
     })).rejects.toThrow("没有可用的消息投递目标");
   });
 
+  it("labels image previews with an extension from the result content type", async () => {
+    const sendMedia = vi.fn().mockResolvedValue({ channel: "feishu", messageId: "message-3" });
+    const api = createApi({ loadAdapter: vi.fn().mockResolvedValue({ sendMedia }) });
+    const tool = createPreviewTool(api, {
+      deliveryContext: { channel: "feishu", to: "chat-1" }
+    });
+
+    await tool.execute("call-1", {
+      display_url: "https://media.example.com/object-key-without-extension",
+      download_url: "https://download.example.com/original.png",
+      media_kind: "image",
+      preview_content_type: "image/webp"
+    });
+
+    const outbound = sendMedia.mock.calls[0]?.[0];
+    expect(outbound.mediaUrl).toBe("https://media.example.com/object-key-without-extension");
+    expect(outbound.fileName).toMatch(/^quick-image-image-[0-9a-f]+\.webp$/);
+  });
+
+  it("labels video previews with an extension without downloading the media", async () => {
+    const sendMedia = vi.fn().mockResolvedValue({ channel: "feishu", messageId: "message-4" });
+    const api = createApi({ loadAdapter: vi.fn().mockResolvedValue({ sendMedia }) });
+    const tool = createPreviewTool(api, {
+      deliveryContext: { channel: "feishu", to: "chat-1" }
+    });
+
+    await tool.execute("call-1", {
+      display_url: "https://media.example.com/object-key-without-extension",
+      download_url: "https://download.example.com/original.mp4",
+      media_kind: "video",
+      preview_content_type: "video/mp4"
+    });
+
+    const outbound = sendMedia.mock.calls[0]?.[0];
+    expect(outbound.mediaUrl).toBe("https://media.example.com/object-key-without-extension");
+    expect(outbound.fileName).toMatch(/^quick-image-video-[0-9a-f]+\.mp4$/);
+  });
+
+  it("omits the file name when the content type is missing or unmappable", async () => {
+    const sendMedia = vi.fn().mockResolvedValue({ channel: "telegram", messageId: "message-5" });
+    const api = createApi({ loadAdapter: vi.fn().mockResolvedValue({ sendMedia }) });
+    const tool = createPreviewTool(api, {
+      deliveryContext: { channel: "telegram", to: "chat-1" }
+    });
+
+    await tool.execute("call-1", {
+      display_url: "https://media.example.com/preview.jpg",
+      download_url: "https://download.example.com/original.jpg",
+      media_kind: "image"
+    });
+    await tool.execute("call-2", {
+      display_url: "https://media.example.com/preview.bin",
+      download_url: "https://download.example.com/original.bin",
+      media_kind: "image",
+      preview_content_type: "application/octet-stream"
+    });
+
+    expect(sendMedia).toHaveBeenCalledTimes(2);
+    for (const call of sendMedia.mock.calls) {
+      expect(call[0]).not.toHaveProperty("fileName");
+    }
+  });
+
+  it("rejects malformed content types", async () => {
+    const api = createApi();
+    const tool = createPreviewTool(api, {
+      deliveryContext: { channel: "telegram", to: "chat-1" }
+    });
+
+    await expect(tool.execute("call-1", {
+      display_url: "https://media.example.com/preview.jpg",
+      download_url: "https://download.example.com/original.jpg",
+      media_kind: "image",
+      preview_content_type: "not a mime"
+    })).rejects.toThrow("preview_content_type 必须是有效的 MIME 类型");
+  });
+
   it("uses the shared attachment pipeline without exposing a local path", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
     temporaryDirectories.push(root);
