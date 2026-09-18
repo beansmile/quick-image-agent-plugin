@@ -28,7 +28,7 @@ codex plugin marketplace add https://github.com/beansmile/quick-image-agent-plug
 codex plugin add quick-image@quick-image
 ```
 
-安装后需要在运行 Codex 的终端完成一次 Quick Image MCP 授权，然后新建一个 Codex 任务，让 Skill 和 MCP 工具生效。
+安装后需要完成一次 Quick Image MCP 授权，然后新建一个 Codex 任务，让 Skill 和 MCP 工具生效。授权可由 Codex Agent 直接执行下方登录命令完成，只有 Codex 无法执行终端命令时才需要用户在本机终端手动执行。
 
 #### 登录或重新登录 MCP
 
