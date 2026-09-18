@@ -4,6 +4,8 @@ import {
   assertSupportedRuntime,
   AttachmentPipeline,
   HANDLE_CLEANUP_INTERVAL_MS,
+  PluginError,
+  PreviewDownloadService,
   resolveOpenClawAttachmentRegistryDirectory
 } from "quick-image-agent-runtime";
 import { OpenClawAttachmentRegistry, type OpenClawAttachmentKind } from "../openclaw/attachment-registry.js";
@@ -79,7 +81,8 @@ interface PreviewParameters {
 
 // 各聊天渠道的媒体投递普遍依赖文件扩展名或 Content-Type 区分“图片/视频消息”与“文件消息”。
 // Quick Image 的结果 URL 是无扩展名的对象存储 key，部分渠道（如飞书）会因此把媒体降级为文件卡片，
-// 因此用任务结果返回的 preview_content_type 给预览媒体显式标注带扩展名的文件名。
+// 因此图片预览经 Runtime 下载到本地后，用 magic bytes 检测出的 MIME 映射带扩展名的 fileName；
+// 视频没有本地下载路径，继续用任务结果返回的 preview_content_type 映射。
 const PREVIEW_MIME_EXTENSIONS: Record<string, string> = {
   "image/jpeg": ".jpg",
   "image/png": ".png",
@@ -92,22 +95,28 @@ const PREVIEW_MIME_EXTENSIONS: Record<string, string> = {
   "video/x-msvideo": ".avi"
 };
 
-function previewFileName(parameters: PreviewParameters): string | undefined {
-  if (!parameters.preview_content_type) return undefined;
-  const extension = PREVIEW_MIME_EXTENSIONS[parameters.preview_content_type];
+function previewFileName(parameters: PreviewParameters, detectedContentType?: string): string | undefined {
+  const contentType = parameters.media_kind === "image" && detectedContentType
+    ? detectedContentType
+    : parameters.preview_content_type;
+  if (!contentType) return undefined;
+  const extension = PREVIEW_MIME_EXTENSIONS[contentType];
   return extension
     ? `quick-image-${parameters.media_kind}-${randomBytes(6).toString("hex")}${extension}`
     : undefined;
 }
 
+export type PreviewDownloadPort = Pick<PreviewDownloadService, "withCachedPreview">;
+
 export function createPreviewTool(
   api: OpenClawPluginApi,
-  context: OpenClawToolContext
+  context: OpenClawToolContext,
+  previewDownloads: PreviewDownloadPort
 ): OpenClawNativeTool {
   return {
     name: PREVIEW_TOOL_NAME,
     label: "发送 Quick Image 预览",
-    description: "将 Quick Image 成功任务的预览媒体发送到当前 OpenClaw 会话，并附上原文件下载链接。",
+    description: "将 Quick Image 成功任务的预览媒体发送到当前 OpenClaw 会话，并附上原文件下载链接；图片预览由本地运行时受约束下载后以本地文件投递，视频预览直接使用结果地址投递。",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -131,55 +140,125 @@ export function createPreviewTool(
           type: "string",
           maxLength: 100,
           pattern: "^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}$",
-          description: "同一任务结果返回的 preview_content_type（预览投递内容的 MIME 类型）；用于让聊天渠道按图片或视频而不是文件展示预览。"
+          description: "同一任务结果返回的 preview_content_type（预览投递内容的 MIME 类型）。视频预览用它映射带扩展名的文件名；图片预览以本地下载检测出的格式为准，该字段仅作参考。"
         }
       },
       required: ["display_url", "download_url", "media_kind"]
     },
     async execute(_toolCallId: string, rawParameters: unknown) {
-      const parameters = parsePreviewParameters(rawParameters);
-      const route = context.deliveryContext;
-      if (!route?.channel || !route.to) {
-        throw new Error("当前 OpenClaw 会话没有可用的消息投递目标。");
+      try {
+        return await executePreview(api, context, previewDownloads, rawParameters);
+      } catch (error) {
+        if (error instanceof PluginError) {
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify(error.toPublicObject()) }],
+            isError: true
+          };
+        }
+        throw error;
       }
-
-      const adapter = await api.runtime.channel.outbound.loadAdapter(route.channel);
-      if (!adapter) throw new Error(`当前消息渠道不支持原生媒体投递：${route.channel}`);
-
-      const cfg = context.getRuntimeConfig?.() ?? context.runtimeConfig ?? context.config ?? api.config;
-      const text = parameters.media_kind === "video"
-        ? `Quick Image 视频生成完成\n下载原视频：${parameters.download_url}`
-        : `Quick Image 图片生成完成\n下载原图：${parameters.download_url}`;
-      const fileName = previewFileName(parameters);
-      const outboundContext: OutboundContext = {
-        cfg,
-        to: route.to,
-        text,
-        mediaUrl: parameters.display_url,
-        ...(fileName ? { fileName } : {}),
-        ...(route.accountId ? { accountId: route.accountId } : {}),
-        ...(route.threadId !== undefined ? { threadId: route.threadId } : {})
-      };
-
-      // 始终使用当前会话的可信路由，工具参数不能指定 channel、收件人、账号或 thread。
-      const result = adapter.sendMedia
-        ? await adapter.sendMedia(outboundContext)
-        : adapter.sendPayload
-          ? await adapter.sendPayload({
-              ...outboundContext,
-              payload: { text, mediaUrl: parameters.display_url }
-            })
-          : undefined;
-      if (!result) throw new Error(`当前消息渠道不支持原生媒体投递：${route.channel}`);
-
-      return {
-        content: [{
-          type: "text" as const,
-          text: JSON.stringify({ sent: true, channel: result.channel, message_id: result.messageId })
-        }]
-      };
     }
   };
+}
+
+async function executePreview(
+  api: OpenClawPluginApi,
+  context: OpenClawToolContext,
+  previewDownloads: PreviewDownloadPort,
+  rawParameters: unknown
+) {
+  const parameters = parsePreviewParameters(rawParameters);
+  const route = context.deliveryContext;
+  if (!route?.channel || !route.to) {
+    throw new Error("当前 OpenClaw 会话没有可用的消息投递目标。");
+  }
+
+  const adapter = await api.runtime.channel.outbound.loadAdapter(route.channel);
+  if (!adapter) throw new Error(`当前消息渠道不支持原生媒体投递：${route.channel}`);
+
+  const cfg = context.getRuntimeConfig?.() ?? context.runtimeConfig ?? context.config ?? api.config;
+  // 视频维持远程 URL 投递；图片先下载到本地缓存，再以本地绝对路径投递。
+  if (parameters.media_kind === "video") {
+    return sendPreviewMedia(
+      parameters,
+      route,
+      adapter,
+      cfg,
+      parameters.display_url,
+      previewFileName(parameters)
+    );
+  }
+
+  try {
+    return await previewDownloads.withCachedPreview(parameters.display_url, async (file) => {
+      try {
+        return await sendPreviewMedia(parameters, route, adapter, cfg, file.filePath, previewFileName(parameters, file.contentType));
+      } catch (error) {
+        throw previewFailure("PREVIEW_SEND_FAILED", "预览媒体本地投递失败", parameters.download_url, error);
+      }
+    });
+  } catch (error) {
+    // 投递阶段已收敛为 PREVIEW_SEND_FAILED；其余失败一律按下载失败处理。
+    if (error instanceof PluginError && error.code === "PREVIEW_SEND_FAILED") throw error;
+    throw previewFailure("PREVIEW_DOWNLOAD_FAILED", "预览媒体下载失败", parameters.download_url, error);
+  }
+}
+
+async function sendPreviewMedia(
+  parameters: PreviewParameters,
+  route: NonNullable<OpenClawToolContext["deliveryContext"]>,
+  adapter: OutboundAdapter,
+  cfg: Record<string, unknown>,
+  mediaUrl: string,
+  fileName: string | undefined
+) {
+  const text = parameters.media_kind === "video"
+    ? `Quick Image 视频生成完成\n下载原视频：${parameters.download_url}`
+    : `Quick Image 图片生成完成\n下载原图：${parameters.download_url}`;
+  const outboundContext: OutboundContext = {
+    cfg,
+    to: route.to!,
+    text,
+    mediaUrl,
+    ...(fileName ? { fileName } : {}),
+    ...(route.accountId ? { accountId: route.accountId } : {}),
+    ...(route.threadId !== undefined ? { threadId: route.threadId } : {})
+  };
+
+  // 始终使用当前会话的可信路由，工具参数不能指定 channel、收件人、账号或 thread。
+  const result = adapter.sendMedia
+    ? await adapter.sendMedia(outboundContext)
+    : adapter.sendPayload
+      ? await adapter.sendPayload({
+          ...outboundContext,
+          payload: { text, mediaUrl }
+        })
+      : undefined;
+  if (!result) throw new Error(`当前消息渠道不支持原生媒体投递：${route.channel}`);
+
+  return {
+    content: [{
+      type: "text" as const,
+      text: JSON.stringify({
+        sent: true,
+        channel: result.channel,
+        message_id: result.messageId,
+        ...(parameters.media_kind === "image" ? { delivered_via: "local_file" } : {})
+      })
+    }]
+  };
+}
+
+function previewFailure(code: string, summary: string, downloadUrl: string, cause: unknown): PluginError {
+  const detail = cause instanceof PluginError
+    ? `${cause.code}：${cause.message}`
+    : cause instanceof Error
+      ? cause.message
+      : String(cause);
+  return new PluginError(code, `${summary}（${detail}）。`, {
+    retryable: false,
+    suggested_action: `不要重试预览发送，也不要退回 Markdown 图片；改为直接发送原图链接文本：${downloadUrl}`
+  });
 }
 
 export function createListAttachmentsTool(
@@ -363,6 +442,11 @@ const plugin = {
     registerOpenClawCli(api);
     const stateDirectory = resolveOpenClawAttachmentRegistryDirectory();
     const registry = new OpenClawAttachmentRegistry(stateDirectory);
+    // 图片预览的本地缓存：目录私有化与启动清扫交给服务初始化；容量清理由服务在每次保存后自触发。
+    const previewDownloads = new PreviewDownloadService(path.join(stateDirectory, "preview-cache"));
+    void previewDownloads.initialize().catch(() => {
+      process.stderr.write(`${JSON.stringify({ code: "PREVIEW_CACHE_INIT_FAILED" })}\n`);
+    });
     let pipelinePromise: Promise<AttachmentPipeline> | undefined;
     const getPipeline = () => {
       pipelinePromise ??= Promise.resolve().then(async () => {
@@ -396,9 +480,10 @@ const plugin = {
         return tool;
       }, { name: toolName });
     }
-    api.registerTool((context) => createPreviewTool(api, context), { name: PREVIEW_TOOL_NAME });
+    api.registerTool((context) => createPreviewTool(api, context, previewDownloads), { name: PREVIEW_TOOL_NAME });
 
     const cleanupTimer = setInterval(() => {
+      // 预览缓存没有 TTL 可清，只保留 registry/pipeline 的既有清理。
       const cleanupTasks = [registry.cleanupUnavailable()];
       if (pipelinePromise) cleanupTasks.push(pipelinePromise.then((pipeline) => pipeline.cleanupExpired()));
       void Promise.all(cleanupTasks).catch(() => {

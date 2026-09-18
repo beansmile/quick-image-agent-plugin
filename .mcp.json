@@ -4,11 +4,11 @@
       "type": "http",
       "url": "https://quickimage.ai/mcp",
       "headers": {
-        "X-Quick-Image-Plugin-Version": "0.1.3",
+        "X-Quick-Image-Plugin-Version": "0.1.4",
         "X-Quick-Image-Frontend-URL": "https://quickimage.ai"
       },
       "http_headers": {
-        "X-Quick-Image-Plugin-Version": "0.1.3",
+        "X-Quick-Image-Plugin-Version": "0.1.4",
         "X-Quick-Image-Frontend-URL": "https://quickimage.ai"
       }
     },
@@ -18,7 +18,7 @@
       "args": [
         "--yes",
         "--package",
-        "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.5/quick-image-agent-runtime.tgz",
+        "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.6/quick-image-agent-runtime.tgz",
         "quick-image-local-mcp"
       ]
     }

@@ -152,7 +152,9 @@ Runtime Release tgz 中的 Doctor 是可选安装验证与故障排查工具，�
 
 内置适配层使用 `message_received` 登记入站媒体，并通过 `quick_image_list_attachments` 返回不含路径的附件 ID。`quick_image_send_preview` 只向当前会话的可信路由发送 Quick Image 预览，不接受任意渠道、收件人或消息正文。通用 `message` 工具不属于 Quick Image 所需权限。
 
-Quick Image 结果 URL 是无扩展名的对象存储 key，部分渠道（如飞书）的媒体投递依赖文件扩展名或下载时的 Content-Type 区分图片/视频消息与文件消息。`quick_image_send_preview` 因此接受任务结果返回的 `preview_content_type`（预览投递内容的 MIME；源文件类型另由 `content_type` 字段提供，仅用于下载场景），映射为带扩展名的 `fileName` 随 outbound 上下文传给渠道适配器；`preview_content_type` 缺失或无法映射时不带 `fileName`，行为与未增强时一致，兼容旧版服务端。视频没有独立预览变体，服务端返回的 `preview_content_type` 与源类型一致（`video/mp4`），预览即原视频投递。
+Quick Image 结果 URL 是无扩展名的对象存储 key，部分渠道（如飞书）的媒体投递依赖文件扩展名或下载时的 Content-Type 区分图片/视频消息与文件消息，且渠道适配器从部署机抓取远程媒体容易失败。因此图片预览采用本地优先投递：`quick_image_send_preview` 把 `display_url` 交给 Runtime 的 `PreviewDownloadService` 受约束下载（仅 HTTPS、拒绝重定向、DNS 私网解析防护、60s 超时、50MB 上限、magic bytes 只接受 JPEG/PNG/WebP）到私有缓存目录 `<state>/preview-cache`，再以本地绝对路径经 `mediaUrl` 投递；`fileName` 的扩展名以本地检测出的格式为准，任务结果返回的 `preview_content_type`（预览投递内容的 MIME；源文件类型另由 `content_type` 字段提供，仅用于下载场景）仅作参考。缓存以 `sha256(display_url)` 为键复用，不做时间过期清理，仅在目录 ≥ 200MB 时按 mtime 从旧到新淘汰；缓存清理由 Runtime 服务在启动和每次保存后自触发，Plugin 不挂额外定时器、不自行删除缓存文件。成功结果带 `delivered_via: "local_file"`。视频没有独立预览变体，维持远程 URL 投递，用 `preview_content_type`（与源类型一致，`video/mp4`）映射带扩展名的 `fileName`，不触发本地下载。
+
+图片预览下载失败或本地发送失败时不回退远程 URL 投递：工具返回 `isError`，稳定错误码为 `PREVIEW_DOWNLOAD_FAILED` / `PREVIEW_SEND_FAILED`，`suggested_action` 指示 Agent 直接发送原图链接文本，不重试、不退回 Markdown 图片。路由缺失、渠道适配器加载失败（`loadAdapter` 返回空）和参数无效仍按原语义抛出；已加载的适配器既不支持 `sendMedia` 也不支持 `sendPayload` 属于投递阶段失败，图片路径收敛为 `PREVIEW_SEND_FAILED` 的 `isError` 结果，视频路径维持抛出。
 
 ### 轮询契约
 
