@@ -1,5 +1,6 @@
 // src/openclaw-adapter/index.ts
 import path4 from "path";
+import { randomBytes as randomBytes2 } from "crypto";
 import {
   assertSupportedRuntime,
   AttachmentPipeline,
@@ -748,6 +749,22 @@ async function runOpenClawSetup(api) {
 // src/openclaw-adapter/index.ts
 var PREVIEW_TOOL_NAME = "quick_image_send_preview";
 var LIST_ATTACHMENTS_TOOL_NAME = "quick_image_list_attachments";
+var PREVIEW_MIME_EXTENSIONS = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/gif": ".gif",
+  "image/bmp": ".bmp",
+  "video/mp4": ".mp4",
+  "video/quicktime": ".mov",
+  "video/webm": ".webm",
+  "video/x-msvideo": ".avi"
+};
+function previewFileName(parameters) {
+  if (!parameters.preview_content_type) return void 0;
+  const extension = PREVIEW_MIME_EXTENSIONS[parameters.preview_content_type];
+  return extension ? `quick-image-${parameters.media_kind}-${randomBytes2(6).toString("hex")}${extension}` : void 0;
+}
 function createPreviewTool(api, context) {
   return {
     name: PREVIEW_TOOL_NAME,
@@ -771,6 +788,12 @@ function createPreviewTool(api, context) {
           type: "string",
           enum: ["image", "video"],
           description: "\u7ED3\u679C\u5A92\u4F53\u7C7B\u578B\u3002"
+        },
+        preview_content_type: {
+          type: "string",
+          maxLength: 100,
+          pattern: "^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}$",
+          description: "\u540C\u4E00\u4EFB\u52A1\u7ED3\u679C\u8FD4\u56DE\u7684 preview_content_type\uFF08\u9884\u89C8\u6295\u9012\u5185\u5BB9\u7684 MIME \u7C7B\u578B\uFF09\uFF1B\u7528\u4E8E\u8BA9\u804A\u5929\u6E20\u9053\u6309\u56FE\u7247\u6216\u89C6\u9891\u800C\u4E0D\u662F\u6587\u4EF6\u5C55\u793A\u9884\u89C8\u3002"
         }
       },
       required: ["display_url", "download_url", "media_kind"]
@@ -787,11 +810,13 @@ function createPreviewTool(api, context) {
       const text = parameters.media_kind === "video" ? `Quick Image \u89C6\u9891\u751F\u6210\u5B8C\u6210
 \u4E0B\u8F7D\u539F\u89C6\u9891\uFF1A${parameters.download_url}` : `Quick Image \u56FE\u7247\u751F\u6210\u5B8C\u6210
 \u4E0B\u8F7D\u539F\u56FE\uFF1A${parameters.download_url}`;
+      const fileName = previewFileName(parameters);
       const outboundContext = {
         cfg,
         to: route.to,
         text,
         mediaUrl: parameters.display_url,
+        ...fileName ? { fileName } : {},
         ...route.accountId ? { accountId: route.accountId } : {},
         ...route.threadId !== void 0 ? { threadId: route.threadId } : {}
       };
@@ -882,7 +907,20 @@ function parsePreviewParameters(value) {
   if (value.media_kind !== "image" && value.media_kind !== "video") {
     throw new Error("media_kind \u5FC5\u987B\u662F image \u6216 video\u3002");
   }
-  return { display_url: displayUrl, download_url: downloadUrl, media_kind: value.media_kind };
+  const previewContentType = parseOptionalContentType(value.preview_content_type, "preview_content_type");
+  return {
+    display_url: displayUrl,
+    download_url: downloadUrl,
+    media_kind: value.media_kind,
+    ...previewContentType ? { preview_content_type: previewContentType } : {}
+  };
+}
+function parseOptionalContentType(value, field) {
+  if (value === void 0 || value === null || value === "") return void 0;
+  if (typeof value !== "string" || value.length > 100 || !/^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}\/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}$/.test(value)) {
+    throw new Error(`${field} \u5FC5\u987B\u662F\u6709\u6548\u7684 MIME \u7C7B\u578B\u3002`);
+  }
+  return value.toLowerCase();
 }
 function parseListParameters(value) {
   if (value === void 0 || value === null) return {};

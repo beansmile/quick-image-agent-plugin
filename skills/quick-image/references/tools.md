@@ -10,7 +10,7 @@
 - `submit_upscale_task`：只接受高清参数和 UUID v4 幂等键，重新校验、计价、扣费并创建任务。
 - `submit_video_task`：只接受视频生成参数和 UUID v4 幂等键，重新校验、计价、扣费并创建任务。
 - `list_generation_tasks`：列出当前账号 MCP/Web 来源的四类独立任务摘要及公开模型信息，默认 20，最大 50。
-- `get_generation_tasks`：按 1～20 个已知 `task_id` 批量返回完整任务，保持输入顺序并自动去重；每项同时包含状态、公开模型、数量、扣费、退款、失败信息，以及成功结果的 `asset_id`、预览用 `display_url`、原始文件 `url` 与媒体类型。无法读取的 ID 返回在 `missing_task_ids`，不会导致整批失败。图片预览只使用 `display_url`，原图下载只使用 `url`。
+- `get_generation_tasks`：按 1～20 个已知 `task_id` 批量返回完整任务，保持输入顺序并自动去重；每项同时包含状态、公开模型、数量、扣费、退款、失败信息，以及成功结果的 `asset_id`、预览用 `display_url`、原始文件 `url`、源文件 `content_type`、预览 `preview_content_type` 与媒体类型。无法读取的 ID 返回在 `missing_task_ids`，不会导致整批失败。图片预览只使用 `display_url`，原图下载只使用 `url`；`preview_content_type` 原样传给宿主的原生媒体工具，用于把预览按图片或视频而不是文件展示。
 
 模型对象包含 `model.id`、`model.display_name`、`model.version`，表示用户请求的公开模型。高清能力没有可选公开模型时不返回 `model`。`id` 和 `version` 仅用于内部识别与提交，用户可见内容只展示 `display_name`；不得从模型对象推测或展示内部供应商路由。
 

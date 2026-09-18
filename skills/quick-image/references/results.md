@@ -52,11 +52,11 @@
 ## 结果展示
 
 - 对每个图片结果，按当前宿主展示预览：
-  - OpenClaw 调用 `quick_image_send_preview`，传任务结果的 `display_url`、原文件 `url` 作为 `download_url` 和 `media_kind="image"`。该工具只使用当前会话可信路由，不接收也不得另行指定 `channel`、`to`、`target`、账号或 thread。
+  - OpenClaw 调用 `quick_image_send_preview`，传任务结果的 `display_url`、原文件 `url` 作为 `download_url`、结果的 `preview_content_type` 和 `media_kind="image"`。该工具只使用当前会话可信路由，不接收也不得另行指定 `channel`、`to`、`target`、账号或 thread。
   - OpenClaw 的原生媒体规则适用于各渠道，具体上传和发送由当前渠道适配器处理，不要改用通用 `message` 或渠道专属工具。
   - OpenClaw 不要仅输出 Markdown 图片作为媒体回退；Codex 使用 `display_url` 通过 Markdown 图片嵌入预览，并紧跟使用 `url` 的下载原图链接。
   - 不得用 `url` 代替 `display_url` 预览，也不得用 `display_url` 代替原图下载链接。OpenClaw 全部媒体发送完成后最终回复使用 `NO_REPLY`，避免同一结果再次作为普通文本发送。
-- `display_url` 为空时不要调用 `quick_image_send_preview`，也不要嵌入图片组件；只展示原图下载链接并说明预览不可用。OpenClaw 找不到该工具时，说明原生适配层未安装或未启用并保留下载链接，不要求开放通用 `message` 权限，不退回 Markdown 图片，不重复提交任务。媒体发送失败时同样保留下载链接，不重复提交。视频结果使用 `media_kind="video"`、可用查看地址作为 `display_url`、原视频地址作为 `download_url`。
+- `display_url` 为空时不要调用 `quick_image_send_preview`，也不要嵌入图片组件；只展示原图下载链接并说明预览不可用。OpenClaw 找不到该工具时，说明原生适配层未安装或未启用并保留下载链接，不要求开放通用 `message` 权限，不退回 Markdown 图片，不重复提交任务。媒体发送失败时同样保留下载链接，不重复提交。视频结果使用 `media_kind="video"`、可用查看地址作为 `display_url`、原视频地址作为 `download_url`，同样传入 `preview_content_type`。
 - 展示扣费、退款和净消耗。`partial_succeeded` 必须同时说明成功数与失败数。
 - `succeeded`、`partial_succeeded` 和 `failed` 都必须发送独立的最终结果消息；生成失败也不能静默结束。
 - 超过等待上限时发送以下独立消息并停止本轮轮询。不要标记失败，不创建新任务；后续继续查询原任务：
