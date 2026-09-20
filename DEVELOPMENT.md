@@ -60,7 +60,7 @@ npx --yes --prefer-online \
   quick-image env reset --host <codex|openclaw|all>
 ```
 
-Runtime CLI 通过 `codex plugin list --json` 自动定位已安装的 Quick Image Plugin，并更新其 `.mcp.json` 和 `mcp.json`；`reset` 将其中的 Quick Image 地址恢复为正式默认值。OpenClaw CLI 使用宿主正式的 `mcp set` 与 `mcp reload`。Server 路径必须是 `/mcp`；远程地址必须使用 HTTPS，仅 loopback 本地调试允许 HTTP。修改 URL 后需按命令输出重新完成 OAuth，Codex 还需新建任务加载配置。
+Runtime CLI 对 Codex 的处理方式：在 `~/.codex/config.toml` 末尾追加（或替换）带 `# BEGIN/END quick-image managed MCP environment` 标记的 `mcp_servers.quick-image` 管理区块。该区块优先于插件清单地址，且不受 Codex 重建插件缓存（marketplace 重新 clone、`plugins/cache` 重建）影响；插件清单本身不会被修改。写入前原文件备份为 `config.toml.quick-image-backup`，写入为原子替换并经 `codex mcp list/get` 验证，失败自动恢复原文；`reset` 删除该区块，Codex 自动回落到插件清单的正式默认地址。OpenClaw CLI 使用宿主正式的 `mcp set` 与 `mcp reload`。本地 MCP 的 `check_environment` 工具可检查各宿主当前是否正式环境（不返回地址）。Server 路径必须是 `/mcp`；远程地址必须使用 HTTPS，仅 loopback 本地调试允许 HTTP。修改 URL 后需按命令输出重新完成 OAuth，Codex 还需新建任务加载配置。
 
 ## Codex 本地调试
 

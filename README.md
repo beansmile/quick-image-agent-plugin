@@ -96,6 +96,20 @@ openclaw mcp login quick-image --code '<授权码>'
 
 Doctor 不是安装或启用插件的必要步骤，详细用法见 [故障排查与修复](#故障排查与修复)。
 
+### 检查环境与恢复正式默认
+
+本地工具 `check_environment` 可随时检查 Codex 与 OpenClaw 当前生效的 Quick Image 环境是否为正式环境（production）；它只返回是否正式环境、配置来源与宿主是否可检查，不会返回任何服务器或前端地址。
+
+如果维护者曾切换过环境、需要恢复为默认的正式环境，执行：
+
+```bash
+npx --yes --prefer-online \
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime.tgz \
+  quick-image env reset --host <codex|openclaw|all>
+```
+
+Codex 的环境切换通过 `~/.codex/config.toml` 末尾带标记的管理区块生效，`reset` 会删除该区块并自动回落到插件清单的正式默认地址，不会影响 config.toml 中的其他内容。恢复后需重新执行 `codex mcp login quick-image` 授权，并新建任务加载配置。
+
 ## 如何使用
 
 安装并授权后，在新对话中发送所需附件，再直接描述生成目标。例如：
@@ -148,7 +162,7 @@ Doctor 不是安装或启用插件的必要步骤。首次安装后想集中检�
 
 ```bash
 npx --yes --prefer-online \
-  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.7/quick-image-agent-runtime.tgz \
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.8/quick-image-agent-runtime.tgz \
   quick-image-doctor --host openclaw
 ```
 

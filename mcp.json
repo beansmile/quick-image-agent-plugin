@@ -15,7 +15,7 @@
       "args": [
         "--yes",
         "--package",
-        "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.7/quick-image-agent-runtime.tgz",
+        "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.8/quick-image-agent-runtime.tgz",
         "quick-image-local-mcp"
       ]
     }
