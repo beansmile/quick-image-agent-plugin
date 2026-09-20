@@ -1,6 +1,6 @@
 ---
 name: quick-image
-description: 使用 Quick Image 对当前会话附件或宿主可访问的本地媒体执行搭配出图、换姿、高清或视频生成，或检查和更新 Quick Image Agent Plugin。用户要求基于图片、视频或音频生成内容、查询 Quick Image 任务、查看生成结果或询问 Plugin 更新时使用；生成任务必须先读取公开配置并本地预估报价，确认后再执行安全附件上传、幂等提交和限速轮询流程。
+description: 使用 Quick Image 对当前会话附件或宿主可访问的本地媒体执行搭配出图、换姿、高清或视频生成，或检查、更新或重装 Quick Image Agent Plugin。用户要求基于图片、视频或音频生成内容、查询 Quick Image 任务、查看生成结果，或要求更新、重装 Quick Image 插件时使用；生成任务必须先读取公开配置并本地预估报价，确认后再执行安全附件上传、幂等提交和限速轮询流程；更新或重装需先从服务端获取安装指令再执行。
 ---
 
 # Quick Image 生成
@@ -26,9 +26,9 @@ description: 使用 Quick Image 对当前会话附件或宿主可访问的本地
 
 不得把上述情况改写成“无法可靠列出模板”后直接结束，也不得猜测模板、继续报价、上传或提交任务。状态检查、网络故障分类、用户确认和 Codex/OpenClaw 登录命令全部按 [auth.md](references/auth.md) 执行；用户确认前不得执行登录命令。
 
-## 版本升级
+## 版本升级与重装
 
-用户询问是否有新版本、明确请求更新 Plugin，或 MCP 工具返回 `upgrade_required` 时，读取 [version.md](references/version.md) 并按其中流程处理。发生 `upgrade_required` 时，完成更新前停止当前生成流程。
+用户询问是否有新版本、明确请求更新或重装 Plugin，或 MCP 工具返回 `upgrade_required` 时，读取 [version.md](references/version.md) 并按其中流程处理。发生 `upgrade_required` 时，完成更新前停止当前生成流程。
 
 ## 按阶段读取规则
 
@@ -40,7 +40,7 @@ description: 使用 Quick Image 对当前会话附件或宿主可访问的本地
 4. 需要报价、等待用户确认、确认后上传或提交任务时，读取 [submission.md](references/submission.md)。只调用与当前能力对应的估价和提交工具；本地预估完成并取得用户确认后才执行上传，余额不足时立即停止。
 5. 任务提交成功、需要轮询、发送结果或查询历史时，读取 [results.md](references/results.md)。
 6. 工具字段语义不明确时读取 [tools.md](references/tools.md)；它是工具契约参考，不替代当前 MCP Schema 或 `get_generation_config` 返回的动态约束。
-7. 进入版本升级流程时读取 [version.md](references/version.md)，完成宿主版本升级后再恢复业务流程。
+7. 进入版本升级或重装流程时读取 [version.md](references/version.md)，按安装指令完成宿主操作后再恢复业务流程。
 
 ## 宿主边界
 

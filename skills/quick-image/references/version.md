@@ -1,6 +1,6 @@
 # 版本升级
 
-用户询问是否有新版本、明确请求更新 Plugin，或 MCP 工具返回 `upgrade_required` 时读取本文件。
+用户询问是否有新版本、明确请求更新或重装 Plugin，或 MCP 工具返回 `upgrade_required` 时读取本文件。
 
 ## 处理规则
 
