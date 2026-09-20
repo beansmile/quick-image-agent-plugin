@@ -14,7 +14,9 @@
 
 ### OpenClaw
 
-执行：
+会话中查不到 Quick Image 远程工具时，先不执行命令：提醒用户在当前对话发送 `/reset` 重置会话上下文，然后停止本轮处理，等用户重置后重新发起请求。安装、登录或切换环境后未重置会话是最常见原因；安装流程中的 Gateway 重启和 `mcp reload` 都不会刷新已开始的会话。`/reset` 由用户发送，不要替用户执行，也不要据此进入授权流程或宣称插件损坏。
+
+用户明确表示已经重置过，或重置后重新发起请求仍查不到工具时，执行：
 
 ```bash
 openclaw mcp doctor --probe quick-image --json
@@ -22,12 +24,14 @@ openclaw mcp doctor --probe quick-image --json
 
 按结果分类：
 
-- 找不到 `quick-image` server：MCP 尚未配置，先让用户重新安装或启用 Quick Image Plugin，不进入 OAuth。
+- 找不到 `quick-image` server：先执行 `openclaw mcp reload` 重载 MCP 配置，命令完成后再执行一次上面的探测，并提醒用户再次发送 `/reset`。重载后仍找不到时，仅当新安装或更新插件后从未重启过 Gateway 才让用户执行 `openclaw gateway restart`（正常安装流程一般已执行），否则让用户重新安装或启用 Quick Image Plugin；两者都不进入 OAuth。
 - 结果包含 OAuth 未授权、`requires OAuth authorization`、`OAuth credentials are not authorized`，或 `probe failed` 的原因是 OAuth：归类为待授权，进入第 2 节。
 - 结果明确为 DNS、超时、连接拒绝或其他网络故障：归类为连接故障，停止并报告故障，不执行登录。
 - 命令无法执行，或输出只有“工具未连接”且没有明确网络故障：无法证明是网络问题，归类为待授权，进入第 2 节，不得用模板不可用文案结束。
 
 `openclaw mcp status` 只查看本地配置，不连接服务器，不能代替上述探测。
+
+探测通过但重置后仍查不到 Quick Image 远程工具时，说明 MCP 配置、连接与授权均正常：向用户说明该结果，可能是工具策略过滤了远程工具，建议用户按 [attachments.md](attachments.md) 宿主故障处理中的 Doctor 命令做集中诊断，不要猜测或改用其他上传入口。
 
 ### Codex
 
