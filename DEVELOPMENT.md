@@ -60,7 +60,7 @@ npx --yes --prefer-online \
   quick-image env reset --host <codex|openclaw|all>
 ```
 
-Runtime CLI 通过 `codex plugin list --json` 自动定位已安装的 Quick Image Plugin，并更新其 `.mcp.json` 和 `mcp.json`；`reset` 将其中的 Quick Image 地址恢复为正式默认值。OpenClaw CLI 使用宿主正式的 `mcp set` 与 `mcp reload`。Server 路径必须是 `/mcp`；远程地址必须使用 HTTPS，仅 loopback 本地调试允许 HTTP。修改 URL 后需按命令输出重新完成 OAuth，Codex 还需新建任务加载配置。
+Runtime CLI 对 Codex 的处理方式：在 `~/.codex/config.toml` 末尾追加（或替换）带 `# BEGIN/END quick-image managed MCP environment` 标记的 `mcp_servers.quick-image` 管理区块。该区块优先于插件清单地址，且不受 Codex 重建插件缓存（marketplace 重新 clone、`plugins/cache` 重建）影响；插件清单本身不会被修改。写入前原文件备份为 `config.toml.quick-image-backup`，写入为原子替换并经 `codex mcp list/get` 验证，失败自动恢复原文；`reset` 删除该区块，Codex 自动回落到插件清单的正式默认地址。OpenClaw CLI 使用宿主正式的 `mcp set` 与 `mcp reload`。本地 MCP 的 `check_environment` 工具可检查各宿主当前是否正式环境（不返回地址）。Server 路径必须是 `/mcp`；远程地址必须使用 HTTPS，仅 loopback 本地调试允许 HTTP。修改 URL 后需按命令输出重新完成 OAuth，Codex 还需新建任务加载配置。
 
 ## Codex 本地调试
 
@@ -135,14 +135,14 @@ npx --yes --prefer-online \
 
 正式环境安装使用 `openclaw quick-image setup`。该命令合并 `tools.alsoAllow`、使用正式环境配置覆盖同名 MCP，并在基础配置成功后执行 `mcp reload`。安装或更新完成后仍需执行 `openclaw gateway restart`，以加载新安装的 Plugin；Gateway 恢复后再继续远程授权流程。`setup` 不会在进程内启动 OAuth，而是在完成后输出登录命令。
 
-远程工具调用失败时，Agent 应先执行 `openclaw mcp doctor --probe quick-image --json` 做连接与 OAuth 探测。输出 `requires OAuth authorization`、`OAuth credentials are not authorized`、OAuth 原因的 `probe failed` 等信号时，应将其视为当前未登录/授权失效，即使业务工具尚未被调用；输出 DNS、超时、连接拒绝等明确网络错误时，按连接故障处理；没有 `quick-image` server 时，先重新安装或启用插件。Agent 确认未登录后，应先告知用户并询问是否需要登录；用户确认后，执行第一条命令并把授权链接发给用户，同时提醒用户不要泄露授权码或在非私聊会话中发送。用户在手机浏览器批准后，只把一次性授权码发回；Agent 校验其为单个安全 code 后，将其作为 `--code` 的单个参数执行第二条命令。登录成功后无需重启 Gateway；Agent 应提示用户在当前对话中发送 `/reset` 重置会话上下文，不要替用户执行。无法安全执行固定命令时，回退为用户手动执行：
+会话内查不到远程工具时，Agent 应先提醒用户发送 `/reset` 重置会话上下文并等用户重新发起请求（安装流程的 Gateway 重启和 `mcp reload` 都不会刷新已开始的会话，未重置是最常见原因），不要替用户执行。远程工具调用失败，或重置后仍查不到工具时，执行 `openclaw mcp doctor --probe quick-image --json` 做连接与 OAuth 探测。输出 `requires OAuth authorization`、`OAuth credentials are not authorized`、OAuth 原因的 `probe failed` 等信号时，应将其视为当前未登录/授权失效，即使业务工具尚未被调用；输出 DNS、超时、连接拒绝等明确网络错误时，按连接故障处理；没有 `quick-image` server 时，先执行 `openclaw mcp reload` 重载后再次探测，仍没有时先重新安装或启用插件（仅当新装或更新后从未重启过 Gateway 时才先重启）。Agent 确认未登录后，应先告知用户并询问是否需要登录；用户确认后，执行第一条命令并把授权链接发给用户，同时提醒用户不要泄露授权码或在非私聊会话中发送。用户在手机浏览器批准后，只把一次性授权码发回；Agent 校验其为单个安全 code 后，将其作为 `--code` 的单个参数执行第二条命令。登录成功后无需重启 Gateway；Agent 应提示用户在当前对话中发送 `/reset` 重置会话上下文，不要替用户执行。无法安全执行固定命令时，回退为用户手动执行：
 
 ```bash
 openclaw mcp login quick-image
 openclaw mcp login quick-image --code '<code>'
 ```
 
-Agent 不以 owner 验证或会话类型作为远程授权前置条件，但必须提醒用户不要泄露一次性 code 或在非私聊会话中发送；不允许 Agent 接受完整命令或其他 Shell 内容，Token 始终由 OpenClaw OAuth 存储管理且不得进入对话。执行带授权码的登录命令后无需重启 Gateway；应建议用户发送 `/reset`，避免安装和登录过程的上下文影响后续 Quick Image 任务。`openclaw mcp probe quick-image` 仅用于连接故障排查。
+Agent 不以 owner 验证或会话类型作为远程授权前置条件，但必须提醒用户不要泄露一次性 code 或在非私聊会话中发送；不允许 Agent 接受完整命令或其他 Shell 内容，Token 始终由 OpenClaw OAuth 存储管理且不得进入对话。执行带授权码的登录命令后无需重启 Gateway；应建议用户发送 `/reset`，避免安装和登录过程的上下文影响后续 Quick Image 任务。`openclaw mcp probe quick-image` 用于连接与授权状态排查，不用于业务流程。
 
 ## OpenClaw 适配契约
 

@@ -210,7 +210,8 @@ const sourceFiles = await walk(root, new Set([".git", "node_modules", "coverage"
 const forbiddenPatterns = [
   [/\/Users\/[A-Za-z0-9._-]+\//, "local macOS path"],
   [/\/home\/[A-Za-z0-9._-]+\//, "local Linux path"],
-  [/git\.beansmile-dev\.com/i, "private repository host"],
+  // 通配内部域名的任意子域（git、staging 应用等），规则本身不出现具体内部主机名
+  [/[a-z0-9-]+\.beansmile-dev\.com/i, "internal beansmile-dev host"],
   [/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/, "private key"],
   [/(?:access|refresh)[_-]?token\s*[:=]\s*["'][^"']{12,}/i, "token-like value"]
 ];

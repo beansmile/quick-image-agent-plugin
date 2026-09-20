@@ -92,17 +92,23 @@ openclaw mcp login quick-image --code '<授权码>'
 
 登录成功后无需重启 Gateway。建议在当前对话中发送 `/reset` 重置会话上下文；若重置后仍无法使用 Quick Image，再执行 `openclaw mcp probe quick-image` 排查连接状态。
 
-#### 安装验证与故障排查
+#### 安装验证
 
-Doctor 不是安装或启用插件的必要步骤。首次安装后想集中检查工具策略、媒体依赖、私有状态目录和上传策略，或遇到 Quick Image 工具不可用时，可选执行：
+Doctor 不是安装或启用插件的必要步骤，详细用法见 [故障排查与修复](#故障排查与修复)。
+
+### 检查环境与恢复正式默认
+
+本地工具 `check_environment` 可随时检查 Codex 与 OpenClaw 当前生效的 Quick Image 环境是否为正式环境（production）；它只返回是否正式环境、配置来源与宿主是否可检查，不会返回任何服务器或前端地址。
+
+如果维护者曾切换过环境、需要恢复为默认的正式环境，执行：
 
 ```bash
 npx --yes --prefer-online \
-  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.7/quick-image-agent-runtime.tgz \
-  quick-image-doctor --host openclaw
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime.tgz \
+  quick-image env reset --host <codex|openclaw|all>
 ```
 
-命令只执行诊断，不修改 OpenClaw 配置。输出 `ok: false` 时，根据对应检查项修复后重启 Gateway。
+Codex 的环境切换通过 `~/.codex/config.toml` 末尾带标记的管理区块生效，`reset` 会删除该区块并自动回落到插件清单的正式默认地址，不会影响 config.toml 中的其他内容。恢复后需重新执行 `codex mcp login quick-image` 授权，并新建任务加载配置。
 
 ## 如何使用
 
@@ -116,6 +122,51 @@ npx --yes --prefer-online \
 Quick Image 会先检查附件并给出预估价格。确认价格前不会处理、暂存或上传附件；确认后才会准备附件并创建生成任务。任务完成后，Codex 会在当前任务中返回结果，OpenClaw 会将结果发送到发起请求的会话。
 
 除非用户明确要求分析或描述媒体内容，Agent 会把图片、音频和视频作为不透明输入处理，不主动预览、播放、转录或识别内容；仅使用文件名、大小、类型及生成限制所需的技术元数据。
+
+## 故障排查与修复
+
+### OpenClaw 查不到 Quick Image 远程 MCP 工具
+
+会话中查不到 Quick Image 远程 MCP 工具（例如 `get_generation_config`、`submit_lookbook_task`），或工具不可调用时，按顺序排查：
+
+1. 在当前对话发送 `/reset` 重置会话上下文。安装流程中的 `openclaw gateway restart` 一般已经执行过，查不到工具的最常见原因是会话未重置：已开始的会话不会自动刷新工具列表。`/reset` 由用户发送，Agent 不要替用户执行。
+2. 重置后仍查不到时，重载 MCP 配置。刚执行过 `setup`、切换环境或更新插件后，配置可能尚未生效；重载后需再次发送 `/reset`：
+
+   ```bash
+   openclaw mcp reload
+   ```
+
+3. 仍查不到时，执行探测确认连接与授权状态：
+
+   ```bash
+   openclaw mcp probe quick-image
+   ```
+
+4. 仅当新安装或更新插件后从未重启过 Gateway 时，才需要重启以加载新插件；正常安装流程一般已执行过：
+
+   ```bash
+   openclaw gateway restart
+   ```
+
+5. 以上均无效时，确认插件已安装并启用，必要时重新安装，并参考下方 Doctor 做集中诊断。
+
+探测提示未授权或授权失效时，按上文「登录或重新登录 MCP」先征得用户确认再完成授权。
+
+### Codex 查不到 Quick Image 远程 MCP 工具
+
+完成授权后新建一个 Codex 任务，让 Skill 和 MCP 工具生效；桌面端仍看不到时，完全退出并重新打开 Codex。
+
+### Doctor 集中诊断
+
+Doctor 不是安装或启用插件的必要步骤。首次安装后想集中检查工具策略、媒体依赖、私有状态目录和上传策略，或遇到 Quick Image 工具不可用时，可选执行：
+
+```bash
+npx --yes --prefer-online \
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.8/quick-image-agent-runtime.tgz \
+  quick-image-doctor --host openclaw
+```
+
+命令只执行诊断，不修改 OpenClaw 配置。输出 `ok: false` 时，根据对应检查项修复后重启 Gateway。
 
 ## 数据与权限
 
