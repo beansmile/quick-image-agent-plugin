@@ -98,7 +98,7 @@ Doctor 不是安装或启用插件的必要步骤，详细用法见 [故障排�
 
 ### 检查环境与恢复正式默认
 
-本地工具 `check_environment` 可随时检查 Codex 与 OpenClaw 当前生效的 Quick Image 环境是否为正式环境（production）；它只返回是否正式环境、配置来源与宿主是否可检查，不会返回任何服务器或前端地址。
+本地工具 `check_environment` 可随时检查 Codex 与 OpenClaw 当前生效的 Quick Image 环境是否为正式环境（production）；它只返回是否正式环境、配置来源与宿主是否可检查，不会返回任何服务器或前端地址。Codex 本地 MCP 与 OpenClaw 原生工具（`quick_image_check_environment`）都提供该检查。
 
 如果维护者曾切换过环境、需要恢复为默认的正式环境，执行：
 
@@ -108,7 +108,7 @@ npx --yes --prefer-online \
   quick-image env reset --host <codex|openclaw|all>
 ```
 
-Codex 的环境切换通过 `~/.codex/config.toml` 末尾带标记的管理区块生效，`reset` 会删除该区块并自动回落到插件清单的正式默认地址，不会影响 config.toml 中的其他内容。恢复后需重新执行 `codex mcp login quick-image` 授权，并新建任务加载配置。
+Codex 的环境切换通过 `~/.codex/config.toml` 末尾带标记的管理区块生效，`reset` 会删除该区块并自动回落到插件清单的正式默认地址，不会影响 config.toml 中的其他内容；恢复后需重新执行 `codex mcp login quick-image` 授权，并新建任务加载配置。OpenClaw 的环境切换通过宿主 MCP 配置生效，`reset` 会把 Quick Image MCP 写回正式环境配置并立即重载，无需重启 Gateway；恢复后需重新执行 `openclaw mcp login quick-image` 授权。
 
 ## 如何使用
 

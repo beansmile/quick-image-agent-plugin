@@ -3,7 +3,7 @@
 ## 远程 Quick Image MCP
 
 - `get_agent_plugin_installation_plan()`：检查 Quick Image Agent Plugin 是否有新版本，返回 `update_available`、`latest_version` 和可用于更新或重装的中文 `prompt`。
-- `get_generation_config`：返回当前账号的 `user_id`、`screen_name`、`email`、实时积分余额，以及公开生成能力、模型 ID、展示名称、版本、参数约束、搭配与换姿各自排序在前的最多 20 个模板、积分价格、公开计费策略、媒体限制和确认阈值；模板包含公开 ID、名称、描述、价格和可用的预览地址，不返回内部 Prompt。配置报价只用于预估，带有 `estimation_contract_version`。账号信息和余额是实时字段，不应长期缓存。
+- `get_generation_config`：返回当前账号的 `user_id`、`screen_name`、`email`、实时积分余额，以及公开生成能力、模型 ID、展示名称、版本、参数约束、搭配与换姿各自排序在前的最多 20 个模板、积分价格、公开计费策略、媒体限制、确认阈值和服务端环境标识。模板包含公开 ID、名称、描述、价格和可用的预览地址，不返回内部 Prompt。配置报价只用于预估，带有 `estimation_contract_version`。账号信息和余额是实时字段，不应长期缓存。
 - `create_direct_upload`：根据最终文件元数据创建 Agent 素材；需要上传时签发限定对象的直传信息，已有同账号且经服务端验证的相同素材时返回复用结果。
 - `submit_lookbook_task`：只接受搭配出图参数和 UUID v4 幂等键，重新校验、计价、扣费并创建任务。
 - `submit_pose_task`：只接受换姿参数和 UUID v4 幂等键，重新校验、计价、扣费并创建任务。
@@ -28,6 +28,7 @@
 - `estimate_video_credits` / `quick_image_estimate_video_credits({ estimation_contract_version, pricing, output_duration_seconds, input_video_duration_seconds, confirmation_thresholds })`：预估视频积分；没有视频输入时 `input_video_duration_seconds` 传 `null`。
 - `upload_staged_attachment` / `quick_image_upload_staged_attachment({ staged_handle, direct_upload })`：分别是 Codex 本地 MCP 与 OpenClaw 原生入口，校验暂存文件后按服务端结果执行 PUT，或跳过已验证素材的重复上传；成功后返回 `asset_id`。
 - `download_preview_media({ display_url })`：Codex 本地 MCP 工具；把任务结果的图片预览受约束下载（仅 HTTPS、拒绝重定向、超时与大小上限、magic bytes 仅接受 JPEG/PNG/WebP）到本地私有缓存，返回本地绝对路径 `file_path`、检测出的 `content_type` 和 `bytes`。同 URL 命中缓存不重复下载；缓存文件在返回后继续存在，仅按容量从旧到新淘汰，拿到路径后应在当前回合内完成预览展示。视频预览不走本工具。
+- `check_environment` / `quick_image_check_environment()`：分别是 Codex 本地 MCP 与 OpenClaw 原生入口。检查本机 Codex 与 OpenClaw 宿主当前生效的 Quick Image MCP 是否为正式环境（production），返回各宿主 `is_production`（`false` 为测试环境，`null` 为无法检查）、配置来源与是否可检查，不返回任何服务器或前端地址。环境检查与重置流程见 [environment.md](environment.md)。
 
 本地文件路径或媒体引用可以由宿主原生能力或 AI 根据用户意图确定。Quick Image 本地工具信任调用方提供的具体输入，不校验来源或另行实施目录授权；实际可读范围由宿主进程的系统文件权限和 Runtime 的引用解析规则决定。所有本地工具都不接受 Base64、Bearer Token 或单独的任意上传 URL。`direct_upload` 必须作为远程工具响应整体传递：`upload_required` 为 `false` 时包含 `asset_id`；需上传时还包含 `upload_url`、`headers` 和 `expires_at`。
 
