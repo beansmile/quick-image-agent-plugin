@@ -10,7 +10,7 @@
 - `submit_upscale_task`：只接受高清参数和 UUID v4 幂等键，重新校验、计价、扣费并创建任务。
 - `submit_video_task`：只接受视频生成参数和 UUID v4 幂等键，重新校验、计价、扣费并创建任务。
 - `list_generation_tasks`：列出当前账号 MCP/Web 来源的四类独立任务摘要及公开模型信息，默认 20，最大 50。
-- `get_generation_tasks`：按 1～20 个已知 `task_id` 批量返回完整任务，保持输入顺序并自动去重；每项同时包含状态、公开模型、数量、扣费、退款、失败信息，以及成功结果的 `asset_id`、预览用 `display_url`、原始文件 `url`、源文件 `content_type`、预览 `preview_content_type` 与媒体类型。无法读取的 ID 返回在 `missing_task_ids`，不会导致整批失败。图片预览只使用 `display_url`，原图下载只使用 `url`；`preview_content_type` 原样传给宿主的原生媒体工具（OpenClaw 图片预览由本地下载检测格式并标注扩展名，视频预览用它映射扩展名）。
+- `get_generation_tasks`：按 1～20 个已知 `task_id` 批量返回完整任务，保持输入顺序并自动去重；每项同时包含状态、公开模型、数量、扣费、退款、失败信息，以及成功结果的 `asset_id`、预览用 `display_url`、原始文件 `url`、源文件 `content_type`、预览 `preview_content_type` 与媒体类型。无法读取的 ID 返回在 `missing_task_ids`，不会导致整批失败。图片预览只使用 `display_url`，原图下载只使用 `url`；图片预览在 OpenClaw 与 Codex 下都先经本地受约束下载（OpenClaw 由 `quick_image_send_preview` 原生投递，Codex 由 `download_preview_media` 返回本地路径），`preview_content_type` 仅作参考；视频预览直接使用结果地址投递，用 `preview_content_type` 映射扩展名，不走本地下载。
 
 模型对象包含 `model.id`、`model.display_name`、`model.version`，表示用户请求的公开模型。高清能力没有可选公开模型时不返回 `model`。`id` 和 `version` 仅用于内部识别与提交，用户可见内容只展示 `display_name`；不得从模型对象推测或展示内部供应商路由。
 
@@ -27,6 +27,7 @@
 - `estimate_upscale_credits` / `quick_image_estimate_upscale_credits({ estimation_contract_version, pricing, input_count, confirmation_thresholds })`：预估高清积分。
 - `estimate_video_credits` / `quick_image_estimate_video_credits({ estimation_contract_version, pricing, output_duration_seconds, input_video_duration_seconds, confirmation_thresholds })`：预估视频积分；没有视频输入时 `input_video_duration_seconds` 传 `null`。
 - `upload_staged_attachment` / `quick_image_upload_staged_attachment({ staged_handle, direct_upload })`：分别是 Codex 本地 MCP 与 OpenClaw 原生入口，校验暂存文件后按服务端结果执行 PUT，或跳过已验证素材的重复上传；成功后返回 `asset_id`。
+- `download_preview_media({ display_url })`：Codex 本地 MCP 工具；把任务结果的图片预览受约束下载（仅 HTTPS、拒绝重定向、超时与大小上限、magic bytes 仅接受 JPEG/PNG/WebP）到本地私有缓存，返回本地绝对路径 `file_path`、检测出的 `content_type` 和 `bytes`。同 URL 命中缓存不重复下载；缓存文件在返回后继续存在，仅按容量从旧到新淘汰，拿到路径后应在当前回合内完成预览展示。视频预览不走本工具。
 
 本地文件路径或媒体引用可以由宿主原生能力或 AI 根据用户意图确定。Quick Image 本地工具信任调用方提供的具体输入，不校验来源或另行实施目录授权；实际可读范围由宿主进程的系统文件权限和 Runtime 的引用解析规则决定。所有本地工具都不接受 Base64、Bearer Token 或单独的任意上传 URL。`direct_upload` 必须作为远程工具响应整体传递：`upload_required` 为 `false` 时包含 `asset_id`；需上传时还包含 `upload_url`、`headers` 和 `expires_at`。
 

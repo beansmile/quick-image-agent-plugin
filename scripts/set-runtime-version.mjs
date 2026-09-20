@@ -1,6 +1,6 @@
 import { readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { runtimePackageForTag } from "./lib/runtime-package.mjs";
+import { runtimePackageForTag, runtimePackageUrlSource } from "./lib/runtime-package.mjs";
 
 const tag = process.argv[2];
 const root = process.cwd();
@@ -13,10 +13,20 @@ packageJson.dependencies["quick-image-agent-runtime"] = runtimePackage;
 setRuntimePackage(portableMcp, "mcp.json");
 setRuntimePackage(codexMcp, ".mcp.json");
 
+const runtimeUrlPattern = new RegExp(runtimePackageUrlSource, "g");
+const readme = await readFile(path.join(root, "README.md"), "utf8").catch((error) => {
+  if (error?.code === "ENOENT") return "";
+  throw error;
+});
+if ((readme.match(runtimeUrlPattern) ?? []).length === 0) {
+  throw new Error("README.md 缺少固定版本的 quick-image-agent-runtime Release tgz 链接");
+}
+
 await Promise.all([
   writeJsonAtomic("package.json", packageJson),
   writeJsonAtomic("mcp.json", portableMcp),
-  writeJsonAtomic(".mcp.json", codexMcp)
+  writeJsonAtomic(".mcp.json", codexMcp),
+  writeTextAtomic("README.md", readme.replace(runtimeUrlPattern, runtimePackage))
 ]);
 
 process.stdout.write(
@@ -36,8 +46,12 @@ async function readJson(file) {
 }
 
 async function writeJsonAtomic(file, value) {
+  await writeTextAtomic(file, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+async function writeTextAtomic(file, value) {
   const target = path.join(root, file);
   const temporary = `${target}.${process.pid}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  await writeFile(temporary, value, "utf8");
   await rename(temporary, target);
 }
