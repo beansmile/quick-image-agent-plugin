@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -23,7 +24,10 @@ describe("OpenClaw native preview adapter", () => {
     expect(plugin.id).toBe("quick-image");
   });
 
-  it("registers the OpenClaw setup command", () => {
+  it("registers the OpenClaw setup command", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
+    temporaryDirectories.push(root);
+    vi.stubEnv("QUICK_IMAGE_DATA_DIR", root);
     const commands: string[] = [];
     const command = {
       command: vi.fn((name: string) => {
@@ -42,7 +46,10 @@ describe("OpenClaw native preview adapter", () => {
     expect(commands).toContain("setup");
   });
 
-  it("registers the scoped attachment and preview tools as required plugin tools", () => {
+  it("registers the scoped attachment and preview tools as required plugin tools", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
+    temporaryDirectories.push(root);
+    vi.stubEnv("QUICK_IMAGE_DATA_DIR", root);
     const registerTool = vi.fn();
     const registerCli = vi.fn();
     plugin.register(createApi({ registerTool, registerCli }));
@@ -66,6 +73,10 @@ describe("OpenClaw native preview adapter", () => {
       { name: "quick_image_send_preview" }
     ]);
     expect(registerTool.mock.calls[0]?.[1]).not.toHaveProperty("optional");
+
+    // register() 预热的预览缓存目录在私有状态目录下初始化。
+    const previewCache = path.join(root, "upload-bridge", "preview-cache");
+    await waitForCondition(() => existsSync(previewCache));
   });
 
   it("lists only opaque attachment ids for the current attachment message", async () => {
@@ -358,10 +369,11 @@ describe("OpenClaw native preview adapter", () => {
     expect(order).toEqual(["first-start", "first-end", "second"]);
   });
 
-  it("sends media through the current trusted delivery route", async () => {
+  it("sends image previews through a local cached file from the trusted route", async () => {
     const sendMedia = vi.fn().mockResolvedValue({ channel: "telegram", messageId: "message-1" });
     const loadAdapter = vi.fn().mockResolvedValue({ sendMedia });
     const api = createApi({ loadAdapter });
+    const { port: previewDownloads } = createPreviewDownloads();
     const tool = createPreviewTool(api, {
       deliveryContext: {
         channel: "telegram",
@@ -369,7 +381,7 @@ describe("OpenClaw native preview adapter", () => {
         accountId: "account-1",
         threadId: 7
       }
-    });
+    }, previewDownloads);
 
     const result = await tool.execute("call-1", {
       display_url: "https://media.example.com/preview.jpg?token=test",
@@ -382,21 +394,91 @@ describe("OpenClaw native preview adapter", () => {
       cfg: {},
       to: "chat-1",
       text: "Quick Image 图片生成完成\n下载原图：https://download.example.com/original.jpg?token=test",
-      mediaUrl: "https://media.example.com/preview.jpg?token=test",
+      mediaUrl: "/private/quick-image/preview-cache/cached.webp",
+      fileName: expect.stringMatching(/^quick-image-image-[0-9a-f]+\.webp$/),
       accountId: "account-1",
       threadId: 7
     });
+    expect(result.isError).not.toBe(true);
     expect(result.content[0]?.text).toContain('"sent":true');
+    expect(result.content[0]?.text).toContain('"delivered_via":"local_file"');
   });
 
-  it("falls back to the channel payload sender", async () => {
-    const sendPayload = vi.fn().mockResolvedValue({ channel: "slack", messageId: "message-2" });
-    const api = createApi({ loadAdapter: vi.fn().mockResolvedValue({ sendPayload }) });
-    const tool = createPreviewTool(api, {
-      deliveryContext: { channel: "slack", to: "channel-1" }
+  it("labels image previews with the extension detected at download time", async () => {
+    const sendMedia = vi.fn().mockResolvedValue({ channel: "feishu", messageId: "message-3" });
+    const api = createApi({ loadAdapter: vi.fn().mockResolvedValue({ sendMedia }) });
+    const { port: previewDownloads } = createPreviewDownloads({
+      file: { filePath: "/private/quick-image/preview-cache/detected.png", contentType: "image/png", bytes: 512 }
     });
+    const tool = createPreviewTool(api, {
+      deliveryContext: { channel: "feishu", to: "chat-1" }
+    }, previewDownloads);
 
     await tool.execute("call-1", {
+      display_url: "https://media.example.com/object-key-without-extension",
+      download_url: "https://download.example.com/original.png",
+      media_kind: "image",
+      preview_content_type: "image/jpeg"
+    });
+
+    const outbound = sendMedia.mock.calls[0]?.[0];
+    expect(outbound.mediaUrl).toBe("/private/quick-image/preview-cache/detected.png");
+    expect(outbound.fileName).toMatch(/^quick-image-image-[0-9a-f]+\.png$/);
+  });
+
+  it("returns an error result without sending when the preview download fails", async () => {
+    const sendMedia = vi.fn();
+    const api = createApi({ loadAdapter: vi.fn().mockResolvedValue({ sendMedia }) });
+    const { port: previewDownloads } = createPreviewDownloads({
+      error: new Error("network unreachable")
+    });
+    const tool = createPreviewTool(api, {
+      deliveryContext: { channel: "telegram", to: "chat-1" }
+    }, previewDownloads);
+
+    const result = await tool.execute("call-1", {
+      display_url: "https://media.example.com/preview.jpg",
+      download_url: "https://download.example.com/original.jpg",
+      media_kind: "image"
+    });
+
+    expect(result.isError).toBe(true);
+    const payload = JSON.parse(result.content[0]?.text ?? "{}");
+    expect(payload.code).toBe("PREVIEW_DOWNLOAD_FAILED");
+    expect(payload.suggested_action).toContain("https://download.example.com/original.jpg");
+    expect(sendMedia).not.toHaveBeenCalled();
+  });
+
+  it("returns an error result when local media delivery fails", async () => {
+    const sendMedia = vi.fn().mockRejectedValue(new Error("channel rejected local file"));
+    const api = createApi({ loadAdapter: vi.fn().mockResolvedValue({ sendMedia }) });
+    const { port: previewDownloads } = createPreviewDownloads();
+    const tool = createPreviewTool(api, {
+      deliveryContext: { channel: "telegram", to: "chat-1" }
+    }, previewDownloads);
+
+    const result = await tool.execute("call-1", {
+      display_url: "https://media.example.com/preview.jpg",
+      download_url: "https://download.example.com/original.jpg",
+      media_kind: "image"
+    });
+
+    expect(result.isError).toBe(true);
+    const payload = JSON.parse(result.content[0]?.text ?? "{}");
+    expect(payload.code).toBe("PREVIEW_SEND_FAILED");
+    expect(payload.suggested_action).toContain("https://download.example.com/original.jpg");
+    expect(sendMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the channel payload sender for videos without local downloads", async () => {
+    const sendPayload = vi.fn().mockResolvedValue({ channel: "slack", messageId: "message-2" });
+    const api = createApi({ loadAdapter: vi.fn().mockResolvedValue({ sendPayload }) });
+    const { port: previewDownloads, withCachedPreview } = createPreviewDownloads();
+    const tool = createPreviewTool(api, {
+      deliveryContext: { channel: "slack", to: "channel-1" }
+    }, previewDownloads);
+
+    const result = await tool.execute("call-1", {
       display_url: "https://media.example.com/preview.mp4",
       download_url: "https://download.example.com/original.mp4",
       media_kind: "video"
@@ -410,25 +492,97 @@ describe("OpenClaw native preview adapter", () => {
         mediaUrl: "https://media.example.com/preview.mp4"
       }
     }));
+    expect(withCachedPreview).not.toHaveBeenCalled();
+    expect(result.content[0]?.text).not.toContain("delivered_via");
   });
 
   it("rejects non-HTTPS media and missing trusted routes", async () => {
     const api = createApi();
+    const { port: previewDownloads, withCachedPreview } = createPreviewDownloads();
     const routedTool = createPreviewTool(api, {
       deliveryContext: { channel: "telegram", to: "chat-1" }
-    });
+    }, previewDownloads);
     await expect(routedTool.execute("call-1", {
       display_url: "http://media.example.com/preview.jpg",
       download_url: "https://download.example.com/original.jpg",
       media_kind: "image"
     })).rejects.toThrow("display_url 必须是有效的 HTTPS URL");
 
-    const unroutedTool = createPreviewTool(api, {});
+    const unroutedTool = createPreviewTool(api, {}, previewDownloads);
     await expect(unroutedTool.execute("call-2", {
       display_url: "https://media.example.com/preview.jpg",
       download_url: "https://download.example.com/original.jpg",
       media_kind: "image"
     })).rejects.toThrow("没有可用的消息投递目标");
+
+    expect(withCachedPreview).not.toHaveBeenCalled();
+  });
+
+  it("labels video previews with an extension without downloading the media", async () => {
+    const sendMedia = vi.fn().mockResolvedValue({ channel: "feishu", messageId: "message-4" });
+    const api = createApi({ loadAdapter: vi.fn().mockResolvedValue({ sendMedia }) });
+    const { port: previewDownloads, withCachedPreview } = createPreviewDownloads();
+    const tool = createPreviewTool(api, {
+      deliveryContext: { channel: "feishu", to: "chat-1" }
+    }, previewDownloads);
+
+    await tool.execute("call-1", {
+      display_url: "https://media.example.com/object-key-without-extension",
+      download_url: "https://download.example.com/original.mp4",
+      media_kind: "video",
+      preview_content_type: "video/mp4"
+    });
+
+    const outbound = sendMedia.mock.calls[0]?.[0];
+    expect(outbound.mediaUrl).toBe("https://media.example.com/object-key-without-extension");
+    expect(outbound.fileName).toMatch(/^quick-image-video-[0-9a-f]+\.mp4$/);
+    expect(withCachedPreview).not.toHaveBeenCalled();
+  });
+
+  it("omits the file name when the content type is missing or unmappable", async () => {
+    const sendMedia = vi.fn().mockResolvedValue({ channel: "telegram", messageId: "message-5" });
+    const api = createApi({ loadAdapter: vi.fn().mockResolvedValue({ sendMedia }) });
+    const { port: previewDownloads } = createPreviewDownloads({
+      file: { filePath: "/private/quick-image/preview-cache/cached.bin", contentType: "application/octet-stream", bytes: 8 }
+    });
+    const videoTool = createPreviewTool(api, {
+      deliveryContext: { channel: "telegram", to: "chat-1" }
+    }, previewDownloads);
+    const imageTool = createPreviewTool(api, {
+      deliveryContext: { channel: "telegram", to: "chat-1" }
+    }, previewDownloads);
+
+    await videoTool.execute("call-1", {
+      display_url: "https://media.example.com/preview.jpg",
+      download_url: "https://download.example.com/original.jpg",
+      media_kind: "video"
+    });
+    await imageTool.execute("call-2", {
+      display_url: "https://media.example.com/preview.bin",
+      download_url: "https://download.example.com/original.bin",
+      media_kind: "image",
+      preview_content_type: "application/octet-stream"
+    });
+
+    expect(sendMedia).toHaveBeenCalledTimes(2);
+    for (const call of sendMedia.mock.calls) {
+      expect(call[0]).not.toHaveProperty("fileName");
+    }
+  });
+
+  it("rejects malformed content types", async () => {
+    const api = createApi();
+    const { port: previewDownloads } = createPreviewDownloads();
+    const tool = createPreviewTool(api, {
+      deliveryContext: { channel: "telegram", to: "chat-1" }
+    }, previewDownloads);
+
+    await expect(tool.execute("call-1", {
+      display_url: "https://media.example.com/preview.jpg",
+      download_url: "https://download.example.com/original.jpg",
+      media_kind: "image",
+      preview_content_type: "not a mime"
+    })).rejects.toThrow("preview_content_type 必须是有效的 MIME 类型");
   });
 
   it("uses the shared attachment pipeline without exposing a local path", async () => {
@@ -599,6 +753,29 @@ function createApi(overrides: {
     registerCli: overrides.registerCli ?? vi.fn(),
     on: overrides.on ?? vi.fn()
   } as unknown as Parameters<typeof createPreviewTool>[0];
+}
+
+function createPreviewDownloads(options: {
+  file?: { filePath: string; contentType: string; bytes: number };
+  error?: unknown;
+} = {}): { port: Parameters<typeof createPreviewTool>[2]; withCachedPreview: ReturnType<typeof vi.fn> } {
+  const withCachedPreview = vi.fn(async (_url: string, use: (file: { filePath: string; contentType: string; bytes: number }) => Promise<unknown>) => {
+    if (options.error !== undefined) throw options.error;
+    return use(options.file ?? {
+      filePath: "/private/quick-image/preview-cache/cached.webp",
+      contentType: "image/webp",
+      bytes: 2048
+    });
+  });
+  return { port: { withCachedPreview } as unknown as Parameters<typeof createPreviewTool>[2], withCachedPreview };
+}
+
+async function waitForCondition(condition: () => boolean, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error("waitForCondition: 条件在超时内未满足");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
 }
 
 function createPipelineFixture() {

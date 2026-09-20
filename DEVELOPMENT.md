@@ -152,11 +152,15 @@ Runtime Release tgz 中的 Doctor 是可选安装验证与故障排查工具，�
 
 内置适配层使用 `message_received` 登记入站媒体，并通过 `quick_image_list_attachments` 返回不含路径的附件 ID。`quick_image_send_preview` 只向当前会话的可信路由发送 Quick Image 预览，不接受任意渠道、收件人或消息正文。通用 `message` 工具不属于 Quick Image 所需权限。
 
+Quick Image 结果 URL 是无扩展名的对象存储 key，部分渠道（如飞书）的媒体投递依赖文件扩展名或下载时的 Content-Type 区分图片/视频消息与文件消息，且渠道适配器从部署机抓取远程媒体容易失败。因此图片预览采用本地优先投递：`quick_image_send_preview` 把 `display_url` 交给 Runtime 的 `PreviewDownloadService` 受约束下载（仅 HTTPS、拒绝重定向、60s 超时、50MB 上限、magic bytes 只接受 JPEG/PNG/WebP；不做下载域名允许列表和 DNS 私网解析防护，以兼容自建/内网部署的服务端）到私有缓存目录 `<state>/preview-cache`，再以本地绝对路径经 `mediaUrl` 投递；`fileName` 的扩展名以本地检测出的格式为准，任务结果返回的 `preview_content_type`（预览投递内容的 MIME；源文件类型另由 `content_type` 字段提供，仅用于下载场景）仅作参考。缓存以 `sha256(display_url)` 为键复用，不做时间过期清理，仅在目录 ≥ 200MB 时按 mtime 从旧到新淘汰；缓存清理由 Runtime 服务在启动和每次保存后自触发，Plugin 不挂额外定时器、不自行删除缓存文件。成功结果带 `delivered_via: "local_file"`。视频没有独立预览变体，维持远程 URL 投递，用 `preview_content_type`（与源类型一致，`video/mp4`）映射带扩展名的 `fileName`，不触发本地下载。Codex 等仅 Markdown 宿主经 `quick-image-local` 本地 MCP 的 `download_preview_media({ display_url })` 走同一 Runtime 下载服务：成功返回本地绝对路径、magic bytes 检测格式与字节数，Agent 在同一回合内用该路径嵌入 Markdown 图片并紧跟原图下载链接。
+
+图片预览下载失败或本地发送失败时不回退远程 URL 投递，OpenClaw 的 `quick_image_send_preview` 与 Codex 的 `download_preview_media` 语义一致：工具返回 `isError`，OpenClaw 收敛为稳定错误码 `PREVIEW_DOWNLOAD_FAILED` / `PREVIEW_SEND_FAILED`，Codex 透传 Runtime 的稳定错误码（`PREVIEW_URL_REJECTED`、`PREVIEW_DOWNLOAD_TIMEOUT`、`PREVIEW_DOWNLOAD_INVALID_MEDIA` 等），`suggested_action` 均指示 Agent 直接发送原图链接文本，不重试、不退回 Markdown 图片。路由缺失、渠道适配器加载失败（`loadAdapter` 返回空）和参数无效仍按原语义抛出；已加载的适配器既不支持 `sendMedia` 也不支持 `sendPayload` 属于投递阶段失败，图片路径收敛为 `PREVIEW_SEND_FAILED` 的 `isError` 结果，视频路径维持抛出。
+
 ### 轮询契约
 
-OpenClaw 提交成功后创建一个每 30 秒运行的 `isolated agentTurn` recurring cron，仅允许调用 `quick-image__get_generation_tasks`、`quick_image_send_preview` 和 `cron`。任务仍在处理时静默返回 `NO_REPLY`；进入终态、查询不到任务或达到等待上限时发送结果并删除自身。
+OpenClaw 提交成功后创建一个每 30 秒运行的 `isolated agentTurn` recurring cron，仅允许调用 `quick-image__get_generation_tasks`、`quick_image_send_preview` 和 `cron`。任务仍在处理时静默返回 `NO_REPLY`；进入终态、查询不到任务或达到等待上限时发送结果并删除自身。cron 创建成功后需向用户补发固定提示`已转入后台监控，你可以继续和我对话，任务完成后我会自动发送结果。`作为执行路径的排查标记；cron 的 `delivery` 使用 `announce` 路由，能从当前会话上下文取得实际 `channel` 与 `to` 时必须写入实际值，取不到时只保留 `mode`，由宿主保留的会话路由推断投递目标。
 
-不得使用 `main + systemEvent`、一次性 cron、heartbeat 或 `sessions_yield` 代替轮询；cron 创建失败时才回退到当前 turn 内 `sleep 30` 后查询。其他宿主的轮询间隔同样为 30 秒。
+不得使用 `main + systemEvent`、一次性 cron、heartbeat 或 `sessions_yield` 代替轮询，也不得在当前 turn 内循环 `sleep` 阻塞会话。cron 创建失败时回退为后台计时器等待：`exec` 以 `background: true` 后台执行 `sleep 30; echo quick-image-timer` 后立即结束回合，命令产生输出或失败时由宿主完成唤醒，Agent 被唤醒后继续轮询，未到终态时静默续挂计时器；子代理会话没有后台完成唤醒，不得使用该回退。其他宿主的轮询间隔同样为 30 秒。
 
 ## 附件适配契约
 
@@ -178,7 +182,7 @@ QUICK_IMAGE_UPLOAD_HOSTS=<official-upload-host>,*.<official-upload-host>
 
 ## 开发与发布校验
 
-发布新的 Runtime 后，用一个命令同步 Plugin 依赖和两份 MCP 清单中的 Runtime Release tgz。环境 CLI 也必须使用同一个已审核的 Runtime Release tgz。Plugin 和 Runtime 均只允许使用 `major.minor.patch` 格式的稳定版本，不允许 prerelease：
+发布新的 Runtime 后，用一个命令同步 Plugin 依赖、两份 MCP 清单和 README 排查命令中的 Runtime Release tgz。环境 CLI 也必须使用同一个已审核的 Runtime Release tgz。Plugin 和 Runtime 均只允许使用 `major.minor.patch` 格式的稳定版本，不允许 prerelease：
 
 ```bash
 pnpm runtime:set v<major>.<minor>.<patch>

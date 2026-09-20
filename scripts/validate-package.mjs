@@ -1,7 +1,7 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import { runtimePackagePattern } from "./lib/runtime-package.mjs";
+import { runtimePackagePattern, runtimePackageUrlSource } from "./lib/runtime-package.mjs";
 
 const root = process.cwd();
 const errors = [];
@@ -116,6 +116,12 @@ if (portableRuntime?.args?.[2] !== companionRuntime?.args?.[2]) {
 }
 if (packageJson.dependencies?.["quick-image-agent-runtime"] !== portableRuntime?.args?.[2]) {
   errors.push("package.json: OpenClaw runtime dependency must match the MCP runtime Release tgz");
+}
+const readme = await readFile(path.join(root, "README.md"), "utf8");
+const readmeRuntimeUrls = readme.match(new RegExp(runtimePackageUrlSource, "g")) ?? [];
+if (readmeRuntimeUrls.length === 0 ||
+    readmeRuntimeUrls.some((url) => url !== packageJson.dependencies?.["quick-image-agent-runtime"])) {
+  errors.push("README.md: runtime Release tgz link must match package.json");
 }
 
 for (const required of [

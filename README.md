@@ -28,7 +28,7 @@ codex plugin marketplace add https://github.com/beansmile/quick-image-agent-plug
 codex plugin add quick-image@quick-image
 ```
 
-安装后需要在运行 Codex 的终端完成一次 Quick Image MCP 授权，然后新建一个 Codex 任务，让 Skill 和 MCP 工具生效。
+安装后需要完成一次 Quick Image MCP 授权，然后新建一个 Codex 任务，让 Skill 和 MCP 工具生效。授权可由 Codex Agent 直接执行下方登录命令完成，只有 Codex 无法执行终端命令时才需要用户在本机终端手动执行。
 
 #### 登录或重新登录 MCP
 
@@ -98,7 +98,7 @@ Doctor 不是安装或启用插件的必要步骤。首次安装后想集中检�
 
 ```bash
 npx --yes --prefer-online \
-  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.3/quick-image-agent-runtime.tgz \
+  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.7/quick-image-agent-runtime.tgz \
   quick-image-doctor --host openclaw
 ```
 
@@ -120,6 +120,7 @@ Quick Image 会先检查附件并给出预估价格。确认价格前不会处�
 ## 数据与权限
 
 - 插件支持当前会话附件，以及宿主或 AI 根据用户意图提供的本地文件绝对路径或 Runtime 支持的媒体引用。插件信任调用方提供的具体输入，不校验来源或另行实施目录授权；实际可读范围由宿主进程的系统文件权限和 Runtime 的引用解析规则决定。
+- 发送生成结果时，图片预览由本地 Runtime 受约束下载（仅 HTTPS、拒绝重定向、超时与大小上限、格式校验）到私有缓存目录后，以本地文件投递：OpenClaw 投递给聊天渠道并按本地检测出的格式标注带扩展名的文件名；Codex 等仅 Markdown 宿主用返回的本地路径嵌入图片预览。下载或本地发送失败时退为发送原图链接文本，不回退远程 URL 投递。视频预览直接使用结果地址投递，并用任务结果返回的 `preview_content_type` 标注扩展名文件名。
 - 插件不提供 Quick Image 云端图库浏览；用户可以直接提供已知的 Quick Image `asset_id`，素材归属和可用性由服务端校验。
 - 报价阶段不上传附件、不扣费，也不锁定最终价格；最终校验和计费以服务端结果为准。
 
