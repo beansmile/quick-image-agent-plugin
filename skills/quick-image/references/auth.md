@@ -1,6 +1,6 @@
 # MCP 连接、状态检查与授权
 
-本文件是 MCP 故障的唯一处理入口。只要 Quick Image MCP 无法连接、不可调用、未出现在工具列表、在启动/发现阶段失败，或 `get_generation_config` 无法调用，就先停止业务流程并按本文件检查；不得继续列模板、报价、上传或提交任务。
+本文件是 Quick Image 授权与登录的处理入口。用户主动要求登录时，直接按第 2 节说明进入宿主登录流程；只要 Quick Image MCP 无法连接、不可调用、未出现在工具列表、在启动/发现阶段失败，或 `get_generation_config` 无法调用，就先停止业务流程并按本文件检查；不得继续列模板、报价、上传或提交任务。
 
 ## 0. 瞬时认证错误先重试
 
@@ -14,7 +14,9 @@
 
 ### OpenClaw
 
-执行：
+会话中查不到 Quick Image 远程工具时，先不执行命令：提醒用户在当前对话发送 `/reset` 重置会话上下文，然后停止本轮处理，等用户重置后重新发起请求。安装、登录或切换环境后未重置会话是最常见原因；安装流程中的 Gateway 重启和 `mcp reload` 都不会刷新已开始的会话。`/reset` 由用户发送，不要替用户执行，也不要据此进入授权流程或宣称插件损坏。
+
+用户明确表示已经重置过，或重置后重新发起请求仍查不到工具时，执行：
 
 ```bash
 openclaw mcp doctor --probe quick-image --json
@@ -22,12 +24,14 @@ openclaw mcp doctor --probe quick-image --json
 
 按结果分类：
 
-- 找不到 `quick-image` server：MCP 尚未配置，先让用户重新安装或启用 Quick Image Plugin，不进入 OAuth。
+- 找不到 `quick-image` server：先执行 `openclaw mcp reload` 重载 MCP 配置，命令完成后再执行一次上面的探测，并提醒用户再次发送 `/reset`。重载后仍找不到时，仅当新安装或更新插件后从未重启过 Gateway 才让用户执行 `openclaw gateway restart`（正常安装流程一般已执行），否则让用户重新安装或启用 Quick Image Plugin；两者都不进入 OAuth。
 - 结果包含 OAuth 未授权、`requires OAuth authorization`、`OAuth credentials are not authorized`，或 `probe failed` 的原因是 OAuth：归类为待授权，进入第 2 节。
 - 结果明确为 DNS、超时、连接拒绝或其他网络故障：归类为连接故障，停止并报告故障，不执行登录。
 - 命令无法执行，或输出只有“工具未连接”且没有明确网络故障：无法证明是网络问题，归类为待授权，进入第 2 节，不得用模板不可用文案结束。
 
 `openclaw mcp status` 只查看本地配置，不连接服务器，不能代替上述探测。
+
+探测通过但重置后仍查不到 Quick Image 远程工具时，说明 MCP 配置、连接与授权均正常：向用户说明该结果，可能是工具策略过滤了远程工具，建议用户按 [attachments.md](attachments.md) 宿主故障处理中的 Doctor 命令做集中诊断，不要猜测或改用其他上传入口。
 
 ### Codex
 
@@ -45,6 +49,8 @@ codex mcp get quick-image
 
 ## 2. 待授权时先征得确认
 
+用户主动要求登录时，无需发送下面的确认问句，也无需先做第 1 节状态检查，直接按第 3 节或第 4 节当前宿主的登录流程执行，凭据安全约束不变。
+
 向用户发送以下首句，不要用“无法可靠读取/列出模板”替代：
 
 > Quick Image 当前未登录或授权不可用，需要现在登录吗？
@@ -53,7 +59,7 @@ codex mcp get quick-image
 
 ## 3. Codex 登录流程
 
-用户确认后，通过宿主 `exec` 执行固定命令：
+经用户确认或用户主动要求登录后，通过宿主 `exec` 执行固定命令：
 
 ```bash
 codex mcp login quick-image
@@ -65,7 +71,7 @@ codex mcp login quick-image
 
 ## 4. OpenClaw 登录流程
 
-用户确认后，通过宿主 `exec` 执行第一条固定命令：
+经用户确认或用户主动要求登录后，通过宿主 `exec` 执行第一条固定命令：
 
 ```bash
 openclaw mcp login quick-image

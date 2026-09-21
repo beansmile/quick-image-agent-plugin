@@ -4,7 +4,6 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
-import { runtimePackagePattern } from "../scripts/lib/runtime-package.mjs";
 
 const execFileAsync = promisify(execFile);
 const script = path.resolve("scripts/set-runtime-version.mjs");
@@ -18,38 +17,31 @@ afterEach(async () => {
 });
 
 describe("runtime:set", () => {
-  it("同步 Runtime 稳定版本的 Release tgz", async () => {
-    const tag = "v1.2.3";
+  it("同步 package.json 依赖与两份 MCP 清单的 Runtime 版本", async () => {
     const root = await createFixture();
-    const expected =
-      `https://github.com/beansmile/quick-image-agent-runtime/releases/download/${tag}/` +
-      "quick-image-agent-runtime.tgz";
-    expect(expected).toMatch(runtimePackagePattern);
+    const expected = "quick-image-agent-runtime@1.2.3";
 
-    await execFileAsync(process.execPath, [script, tag], { cwd: root });
+    await execFileAsync(process.execPath, [script, "1.2.3"], { cwd: root });
 
     const packageJson = await readJson(path.join(root, "package.json"));
     const portableMcp = await readJson(path.join(root, "mcp.json"));
     const codexMcp = await readJson(path.join(root, ".mcp.json"));
-    expect(packageJson.dependencies["quick-image-agent-runtime"]).toBe(expected);
+    expect(packageJson.dependencies["quick-image-agent-runtime"]).toBe("1.2.3");
     expect(portableMcp.mcpServers["quick-image-local"].args[2]).toBe(expected);
     expect(codexMcp.mcpServers["quick-image-local"].args[2]).toBe(expected);
-    const readme = await readFile(path.join(root, "README.md"), "utf8");
-    expect(readme).toContain(expected);
-    expect(readme).not.toContain("releases/download/v0.2.3/");
   });
 
-  it.each(["main", "v01.2.3", "v1.2.3-rc.1", "v1.2.3-01"])("拒绝浮动分支或不规范版本 %s", async (tag) => {
+  it.each(["v1.2.3", "1.2.3-rc.1", "1.2", "main", "01.2.3"])("拒绝不规范版本 %s", async (version) => {
     const root = await createFixture();
-    await expect(execFileAsync(process.execPath, [script, tag], { cwd: root })).rejects.toThrow(
-      "v<major>.<minor>.<patch>"
+    await expect(execFileAsync(process.execPath, [script, version], { cwd: root })).rejects.toThrow(
+      "<major>.<minor>.<patch>"
     );
   });
 
-  it("README 缺少 Runtime Release tgz 链接时报错", async () => {
-    const root = await createFixture({ readmeWithoutRuntimeUrl: true });
-    await expect(execFileAsync(process.execPath, [script, "v1.2.3"], { cwd: root })).rejects.toThrow(
-      "README.md 缺少固定版本的 quick-image-agent-runtime Release tgz 链接"
+  it("MCP 清单缺少 quick-image-local 配置时报错", async () => {
+    const root = await createFixture({ withoutLocalRuntime: true });
+    await expect(execFileAsync(process.execPath, [script, "1.2.3"], { cwd: root })).rejects.toThrow(
+      "缺少有效的 quick-image-local 配置"
     );
   });
 });
@@ -57,33 +49,23 @@ describe("runtime:set", () => {
 async function createFixture(options = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-runtime-version-test-"));
   temporaryDirectories.push(root);
-  const runtimeServer = {
-    command: "npx",
-    args: ["--yes", "--package", "https://example.com/runtime.tgz", "quick-image-local-mcp"]
-  };
+  const mcpConfig = options.withoutLocalRuntime
+    ? { mcpServers: {} }
+    : {
+        mcpServers: {
+          "quick-image-local": {
+            command: "npx",
+            args: ["--yes", "--package", "quick-image-agent-runtime@0.2.3", "quick-image-local-mcp"]
+          }
+        }
+      };
   const files = [
     ["package.json", JSON.stringify({
-      dependencies: { "quick-image-agent-runtime": "https://example.com/runtime.tgz" }
+      dependencies: { "quick-image-agent-runtime": "0.2.3" }
     })],
-    ["mcp.json", JSON.stringify({
-      mcpServers: { "quick-image-local": runtimeServer }
-    })],
-    [".mcp.json", JSON.stringify({
-      mcpServers: { "quick-image-local": runtimeServer }
-    })]
+    ["mcp.json", JSON.stringify(mcpConfig)],
+    [".mcp.json", JSON.stringify(mcpConfig)]
   ];
-  if (options.readmeWithoutRuntimeUrl) {
-    files.push(["README.md", "# quick-image\n"]);
-  } else {
-    files.push(["README.md", [
-      "```bash",
-      "npx --yes --prefer-online \\",
-      "  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.3/quick-image-agent-runtime.tgz \\",
-      "  quick-image-doctor --host openclaw",
-      "```",
-      ""
-    ].join("\n")]);
-  }
   await Promise.all(files.map(([name, content]) => writeFile(path.join(root, name), content)));
   return root;
 }

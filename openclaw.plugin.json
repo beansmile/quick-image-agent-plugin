@@ -2,7 +2,7 @@
   "id": "quick-image",
   "name": "Quick Image",
   "description": "安全处理 OpenClaw 提供的会话附件或本地媒体，并使用 Quick Image 生成图片或视频。",
-  "version": "0.1.5",
+  "version": "0.1.8",
   "activation": {
     "onStartup": true
   },
@@ -19,6 +19,7 @@
       "quick_image_estimate_upscale_credits",
       "quick_image_estimate_video_credits",
       "quick_image_upload_staged_attachment",
+      "quick_image_check_environment",
       "quick_image_send_preview"
     ]
   },
