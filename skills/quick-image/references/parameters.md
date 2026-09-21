@@ -150,7 +150,7 @@ Prompt 来源选择：
 
 ## 本地估价工具
 
-| 能力 | Codex 本地 MCP | OpenClaw 原生工具 | 直接参数 |
+| 能力 | 通用本地 MCP（Codex、WorkBuddy 等） | OpenClaw 原生工具 | 直接参数 |
 | --- | --- | --- | --- |
 | 搭配出图 | `estimate_lookbook_credits` | `quick_image_estimate_lookbook_credits` | `pricing`、`preset`、`preset_price_behavior`、`output_count` |
 | 换姿 | `estimate_pose_credits` | `quick_image_estimate_pose_credits` | `pricing`、`preset`、`preset_price_behavior`、`person_count`、`output_count_per_person` |

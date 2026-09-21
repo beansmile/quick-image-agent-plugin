@@ -22,7 +22,7 @@ describe("plugin:set", () => {
 
     await execFileAsync(process.execPath, [script, version], { cwd: root });
 
-    for (const file of ["package.json", "plugin.json", ".codex-plugin/plugin.json", "openclaw.plugin.json"]) {
+    for (const file of ["package.json", "plugin.json", ".codex-plugin/plugin.json", ".codebuddy-plugin/plugin.json", ".workbuddy-plugin/plugin.json", "openclaw.plugin.json"]) {
       expect((await readJson(path.join(root, file))).version).toBe(version);
     }
     const portableMcp = await readJson(path.join(root, "mcp.json"));
@@ -44,10 +44,14 @@ async function createFixture() {
   const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-plugin-version-test-"));
   temporaryDirectories.push(root);
   await mkdir(path.join(root, ".codex-plugin"), { recursive: true });
+  await mkdir(path.join(root, ".codebuddy-plugin"), { recursive: true });
+  await mkdir(path.join(root, ".workbuddy-plugin"), { recursive: true });
   await Promise.all([
     writeJson(path.join(root, "package.json"), { version: "0.1.2" }),
     writeJson(path.join(root, "plugin.json"), { version: "0.1.2" }),
     writeJson(path.join(root, ".codex-plugin/plugin.json"), { version: "0.1.2" }),
+    writeJson(path.join(root, ".codebuddy-plugin/plugin.json"), { version: "0.1.2" }),
+    writeJson(path.join(root, ".workbuddy-plugin/plugin.json"), { version: "0.1.2" }),
     writeJson(path.join(root, "openclaw.plugin.json"), { version: "0.1.2" }),
     writeJson(path.join(root, "mcp.json"), { mcpServers: { "quick-image": { headers: { "X-Quick-Image-Plugin-Version": "0.1.2" } } } }),
     writeJson(path.join(root, ".mcp.json"), { mcpServers: { "quick-image": { headers: { "X-Quick-Image-Plugin-Version": "0.1.2" }, http_headers: { "X-Quick-Image-Plugin-Version": "0.1.2" } } } })
