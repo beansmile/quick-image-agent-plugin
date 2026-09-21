@@ -108,7 +108,7 @@ npx --yes --prefer-online \
   quick-image env reset --host <codex|openclaw|all>
 ```
 
-Codex 的环境切换通过 `~/.codex/config.toml` 末尾带标记的管理区块生效，`reset` 会删除该区块并自动回落到插件清单的正式默认地址，不会影响 config.toml 中的其他内容；恢复后需重新执行 `codex mcp login quick-image` 授权，并新建任务加载配置。OpenClaw 的环境切换通过宿主 MCP 配置生效，`reset` 会把 Quick Image MCP 写回正式环境配置并立即重载，无需重启 Gateway；恢复后需重新执行 `openclaw mcp login quick-image` 授权。
+`reset` 会把 Quick Image MCP 恢复为正式环境配置，不影响其他配置内容，可安全重复执行。恢复后需重新完成授权：Codex 重新执行 `codex mcp login quick-image` 并新建任务加载配置；OpenClaw 重新执行 `openclaw mcp login quick-image`，配置即时生效，无需重启 Gateway。
 
 ## 如何使用
 

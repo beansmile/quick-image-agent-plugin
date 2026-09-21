@@ -1,6 +1,6 @@
 ---
 name: quick-image
-description: 使用 Quick Image 对当前会话附件或宿主可访问的本地媒体执行搭配出图、换姿、高清或视频生成，或检查、更新或重装 Quick Image Agent Plugin。用户要求基于图片、视频或音频生成内容、查询 Quick Image 任务、查看生成结果，或要求更新、重装 Quick Image 插件时使用；生成任务必须先读取公开配置并本地预估报价，确认后再执行安全附件上传、幂等提交和限速轮询流程；更新或重装需先从服务端获取安装指令再执行；安装完成后需用本地 MCP 确认环境，非正式环境按说明重置为正式环境。
+description: 使用 Quick Image 对当前会话附件或宿主可访问的本地媒体执行搭配出图、换姿、高清或视频生成，或检查、更新或重装 Quick Image Agent Plugin。用户要求基于图片、视频或音频生成内容、查询 Quick Image 任务、查看生成结果，或要求更新、重装 Quick Image 插件时使用；生成任务必须先读取公开配置并本地预估报价，确认后再执行安全附件上传、幂等提交和限速轮询流程；更新或重装需先从服务端获取安装指令再执行；
 ---
 
 # Quick Image 生成
@@ -26,13 +26,15 @@ description: 使用 Quick Image 对当前会话附件或宿主可访问的本地
 
 不得把上述情况改写成“无法可靠列出模板”后直接结束，也不得猜测模板、继续报价、上传或提交任务。会话重置提示、状态检查、MCP 配置重载、网络故障分类、用户确认和 Codex/OpenClaw 登录命令全部按 [auth.md](references/auth.md) 执行；用户确认前不得执行登录命令。
 
+用户主动要求登录 Quick Image 时，同样读取 [auth.md](references/auth.md) 并直接按其中宿主登录流程执行；登录与环境检查互不依赖，不得先检查环境或要求切换正式环境。
+
 ## 版本升级与重装
 
 用户询问是否有新版本、明确请求更新或重装 Plugin，或 MCP 工具返回 `upgrade_required` 时，读取 [version.md](references/version.md) 并按其中流程处理。发生 `upgrade_required` 时，完成更新前停止当前生成流程。
 
 ## 环境检查与重置
 
-安装或更新完成后按安装指令确认 Quick Image 是否为正式环境，本地环境检查工具（Codex 为 `check_environment`，OpenClaw 为 `quick_image_check_environment`）显示当前不是正式环境，或用户要求检查环境、恢复正式环境时，读取 [environment.md](references/environment.md) 并按其中流程处理。
+安装或更新完成后按安装指令确认 Quick Image 是否为正式环境，本地环境检查工具（Codex 为 `check_environment`，OpenClaw 为 `quick_image_check_environment`）显示当前不是正式环境，或用户要求检查环境、恢复正式环境时，读取 [environment.md](references/environment.md) 并按其中流程处理。本节仅在安装或更新完成、或用户明确要求时进入，不得作为登录、生成或查询任务的前置步骤。
 
 ## 按阶段读取规则
 
