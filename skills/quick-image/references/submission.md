@@ -26,10 +26,10 @@
 
 用户明确确认后，对每个需要上传的附件：
 
-1. 将报价时保留的 `attachment_handle` 传给 Codex 的 `prepare_attachment` 或 OpenClaw 的 `quick_image_prepare_attachment`。工具会重新读取原附件并验证文件身份、校验和和媒体格式未变化，图片此时才旋转、缩放和压缩；成功后消费检查句柄并返回 `staged_handle` 与完整 `create_direct_upload_args`。
+1. 将报价时保留的 `attachment_handle` 传给通用本地 MCP 的 `prepare_attachment`（Codex、WorkBuddy 等宿主复用）或 OpenClaw 的 `quick_image_prepare_attachment`。工具会重新读取原附件并验证文件身份、校验和和媒体格式未变化，图片此时才旋转、缩放和压缩；成功后消费检查句柄并返回 `staged_handle` 与完整 `create_direct_upload_args`。
 2. 返回 `ATTACHMENT_CHANGED`、句柄不存在或已过期时，停止上传，重新检查附件并重新报价；不得继续使用旧报价。
 3. 将 `create_direct_upload_args` 完整对象直接用作远程 `create_direct_upload` 的 arguments。禁止逐字段重新读取、转写、缩写或修正其中任何值，尤其是 `checksum` 和 `upload_checksum`。
-4. 将远程返回的完整直传信息原样传给 Codex 的 `upload_staged_attachment` 或 OpenClaw 的 `quick_image_upload_staged_attachment`，只使用其最终返回的 `asset_id`。
+4. 将远程返回的完整直传信息原样传给通用本地 MCP 的 `upload_staged_attachment` 或 OpenClaw 的 `quick_image_upload_staged_attachment`，只使用其最终返回的 `asset_id`。
 
 ## 幂等提交
 

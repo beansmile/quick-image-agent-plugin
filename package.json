@@ -10,6 +10,8 @@
   "packageManager": "pnpm@10.19.0",
   "files": [
     ".codex-plugin/",
+    ".codebuddy-plugin/",
+    ".workbuddy-plugin/",
     ".claude-plugin/",
     "skills/",
     "openclaw-adapter/",

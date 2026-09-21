@@ -6,7 +6,7 @@
 
 ## 架构与能力边界
 
-Quick Image Agent Plugin 为 Codex 和 OpenClaw 提供同一份生成 Skill 与远程 Quick Image MCP 连接。独立版本的 `quick-image-agent-runtime` 同时导出 stdio MCP 入口和核心 API：Codex 启动 stdio MCP，OpenClaw 原生适配器直接导入核心 API。两端因此复用完全相同的附件处理、估价和上传实现；Runtime 版本与 Plugin 版本仍独立发布。
+Quick Image Agent Plugin 为 Codex、WorkBuddy、OpenClaw 等 Agent 宿主提供同一份生成 Skill 与远程 Quick Image MCP 连接。独立版本的 `quick-image-agent-runtime` 同时导出 stdio MCP 入口和核心 API：Codex、WorkBuddy 等通用 MCP 宿主启动 stdio MCP，OpenClaw 原生适配器直接导入核心 API。各宿主因此复用完全相同的附件处理、估价和上传实现；Runtime 版本与 Plugin 版本仍独立发布。
 
 - 插件支持搭配出图、换姿、高清和视频生成。
 - 生成前通过远程 MCP 获取公开配置并在本地预估报价，用户确认后才上传。
@@ -28,7 +28,7 @@ pnpm install --frozen-lockfile
 pnpm check
 ```
 
-Plugin 与 Runtime 均发布到 npm Registry（Plugin 供 OpenClaw 以 npm spec 安装与更新，Runtime 是 Plugin 的固定版本依赖）。Plugin 发布包由 CI 在干净检出中构建和校验；Plugin 依赖与 Codex、通用 Agent Plugin 清单固定同一个 `quick-image-agent-runtime` npm Registry 版本（`quick-image-agent-runtime@x.y.z`），不跟随浮动分支或 `latest`。文档与共享 Skill 中供人或 Agent 执行的 Runtime 命令统一使用 `quick-image-agent-runtime@latest`：registry 包名 spec 会被 npx 按版本正确解析与缓存，自动追新且不存在浮动 URL 复用旧缓存的问题。Runtime 的 GitHub Release tgz 由同一 CI 产出，作为 npm 渠道之外的备份地址。Codex 通过 `npx` 首次启动 Runtime 时、OpenClaw 安装 Plugin 依赖时，都只安装当前平台所需的原生依赖。不要从未审核的工作区直接发布。
+Plugin 与 Runtime 均发布到 npm Registry（Plugin 供 OpenClaw 以 npm spec 安装与更新，Runtime 是 Plugin 的固定版本依赖）。Plugin 发布包由 CI 在干净检出中构建和校验；Plugin 依赖与 Codex、WorkBuddy、通用 Agent Plugin 清单固定同一个 `quick-image-agent-runtime` npm Registry 版本（`quick-image-agent-runtime@x.y.z`），不跟随浮动分支或 `latest`。文档与共享 Skill 中供人或 Agent 执行的 Runtime 命令统一使用 `quick-image-agent-runtime@latest`：registry 包名 spec 会被 npx 按版本正确解析与缓存，自动追新且不存在浮动 URL 复用旧缓存的问题。Runtime 的 GitHub Release tgz 由同一 CI 产出，作为 npm 渠道之外的备份地址。Codex、WorkBuddy 等宿主通过 `npx` 首次启动 Runtime 时、OpenClaw 安装 Plugin 依赖时，都只安装当前平台所需的原生依赖。不要从未审核的工作区直接发布。
 
 ## 环境配置
 
@@ -37,7 +37,7 @@ Plugin 与 Runtime 均发布到 npm Registry（Plugin 供 OpenClaw 以 npm spec 
 - Server：`https://quickimage.ai/mcp`
 - Frontend：`https://quickimage.ai`
 
-Plugin MCP 清单始终提供正式默认地址。本地调试安装通过隔离 Overlay 使用开发地址；维护者需要显式切换已安装宿主时，统一执行 `quick-image-agent-runtime@latest` 中的 `quick-image` CLI。地址只由命令调用者传入，不写入 Plugin 或 Runtime 源码：
+Plugin MCP 清单始终提供正式默认地址。本地调试安装通过隔离 Overlay 使用开发地址；维护者需要显式切换已安装宿主时，统一执行 `quick-image-agent-runtime@latest` 中的 `quick-image` CLI。当前 `--host` 仅支持 `codex`、`openclaw` 和 `all`；WorkBuddy 的环境切换与本地调试安装方式待补充（占位）。地址只由命令调用者传入，不写入 Plugin 或 Runtime 源码：
 
 ```bash
 npx --yes --prefer-online \
@@ -96,6 +96,10 @@ codex mcp login quick-image
 浏览器授权完成后新建 Codex 任务；桌面端仍未加载远程工具时，完全退出并重新打开 Codex。若 Agent 无法执行终端命令，可让维护者在本机终端执行同一条命令。若命令提示找不到 MCP，先重新安装或启用 Plugin，再重试登录。不要把 Token、授权码或终端输出放入对话或日志。
 
 Codex CLI 当前没有 `mcp doctor` 或 `mcp probe` 子命令。连接失败时可执行 `codex mcp get quick-image` 确认 MCP 已登记，但该命令不验证 OAuth 凭据；未登记时先重新安装或启用 Plugin，已登记且宿主没有明确网络错误时，仍以宿主 OAuth 错误或授权流程判断是否需要登录。
+
+## WorkBuddy 本地调试（占位）
+
+WorkBuddy 的本地调试与测试环境设置方式待补充（占位）。WorkBuddy 与 Codex 复用同一套插件能力，仓库同时携带两份 WorkBuddy manifest：`.codebuddy-plugin/plugin.json` 通过 `./mcp.json` 声明同一套 Quick Image MCP（远程 `quick-image` 和本地 `quick-image-local`），未声明 `skills` 字段；`.workbuddy-plugin/plugin.json` 与 Codex manifest 同形（`skills: ./skills/`、`mcpServers: ./.mcp.json`）。WorkBuddy 实际读取哪一份以及 Skill 的发现与加载方式待补充。本地调试目标与 Codex 一致——构建源码后，让 WorkBuddy 实际加载本地构建产物，并将远程 MCP 指向本地 Server 和 Frontend。具体的安装/刷新命令、插件目录、隔离 Overlay 与配置写入方式确定后在此补充；在此之前不要为 WorkBuddy 编写修改宿主配置的安装脚本。
 
 ## OpenClaw 本地调试
 

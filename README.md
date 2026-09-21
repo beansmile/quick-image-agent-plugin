@@ -1,6 +1,6 @@
 # Quick Image Agent Plugin
 
-Quick Image Agent Plugin 让 Codex 和 OpenClaw 可以使用当前会话附件，以及宿主或 AI 根据用户意图提供的本地图片、视频和音频完成 AI 图片和视频生成。
+Quick Image Agent Plugin 让 Codex、WorkBuddy、OpenClaw 等 AI Agent 宿主可以使用当前会话附件，以及宿主或 AI 根据用户意图提供的本地图片、视频和音频完成 AI 图片和视频生成。除 OpenClaw 需要原生适配工具外，其他宿主复用同一套 Skill 与 Quick Image MCP。
 
 - 支持搭配出图、换姿、高清和视频生成。
 - 创建任务前先展示预估价格，只有在你确认后才处理并上传附件。
@@ -13,9 +13,9 @@ Quick Image Agent Plugin 让 Codex 和 OpenClaw 可以使用当前会话附件�
 ## 使用要求
 
 - 一个可正常登录的 Quick Image 账号。
-- Codex，或 OpenClaw 2026.6.34 及以上版本。
+- Codex、WorkBuddy，或 OpenClaw 2026.6.34 及以上版本；WorkBuddy 的版本与安装要求待补充。
 - macOS、Linux 或 Windows WSL2；WSL2 是 Windows 的主要兼容目标，原生 Windows 会尝试兼容但不作完整兼容保证。
-- Codex 本地工具和 OpenClaw 需要 Node.js 20 或更高版本。
+- 宿主本地工具（Codex、WorkBuddy 的本地 MCP 和 OpenClaw 原生插件）需要 Node.js 20 或更高版本。
 
 ## 安装
 
@@ -45,6 +45,10 @@ codex mcp login quick-image
 如果命令提示找不到 `quick-image` MCP，请先确认插件已安装并启用，再重新执行登录命令。
 
 插件固定使用经过验证的 Quick Image Agent Runtime 版本。Codex 首次加载本地工具、OpenClaw 安装插件依赖时，只会安装当前平台所需的媒体处理依赖，不会下载其他操作系统的二进制。
+
+### WorkBuddy
+
+WorkBuddy 的安装方式待补充（占位）。插件能力与 Codex 通用：复用同一份共享 Skill 与 Quick Image MCP（远程 `quick-image` 和本地 `quick-image-local`），附件检查、报价、上传和预览下载都走同一套本地 MCP 工具；远程授权通过 WorkBuddy 自身的 MCP OAuth 机制完成。具体的安装命令、插件入口和版本要求确定后在此补充。
 
 ### OpenClaw
 
@@ -100,7 +104,7 @@ Doctor 不是安装或启用插件的必要步骤，详细用法见 [故障排�
 
 ### 检查环境与恢复正式默认
 
-本地工具 `check_environment` 可随时检查 Codex 与 OpenClaw 当前生效的 Quick Image 环境是否为正式环境（production）；它只返回是否正式环境、配置来源与宿主是否可检查，不会返回任何服务器或前端地址。Codex 本地 MCP 与 OpenClaw 原生工具（`quick_image_check_environment`）都提供该检查。
+本地工具 `check_environment` 可随时检查各宿主当前生效的 Quick Image 环境是否为正式环境（production），当前可检查的宿主以工具返回为准；它只返回是否正式环境、配置来源与宿主是否可检查，不会返回任何服务器或前端地址。Codex、WorkBuddy 等宿主的本地 MCP 与 OpenClaw 原生工具（`quick_image_check_environment`）都提供该检查。
 
 如果维护者曾切换过环境、需要恢复为默认的正式环境，执行：
 
@@ -110,7 +114,7 @@ npx --yes --prefer-online \
   quick-image env reset --host <codex|openclaw|all>
 ```
 
-`reset` 会把 Quick Image MCP 恢复为正式环境配置，不影响其他配置内容，可安全重复执行。恢复后需重新完成授权：Codex 重新执行 `codex mcp login quick-image` 并新建任务加载配置；OpenClaw 重新执行 `openclaw mcp login quick-image`，配置即时生效，无需重启 Gateway。
+`reset` 会把 Quick Image MCP 恢复为正式环境配置，不影响其他配置内容，可安全重复执行；`--host` 当前仅支持 `codex`、`openclaw` 和 `all`，WorkBuddy 的环境切换与恢复方式待补充（占位）。恢复后需重新完成授权：Codex 重新执行 `codex mcp login quick-image` 并新建任务加载配置；OpenClaw 重新执行 `openclaw mcp login quick-image`，配置即时生效，无需重启 Gateway。
 
 ## 如何使用
 
@@ -121,7 +125,7 @@ npx --yes --prefer-online \
 - “把这张图片提升为高清版本。”
 - “参考这张图片和这段音频生成一个视频。”
 
-Quick Image 会先检查附件并给出预估价格。确认价格前不会处理、暂存或上传附件；确认后才会准备附件并创建生成任务。任务完成后，Codex 会在当前任务中返回结果，OpenClaw 会将结果发送到发起请求的会话。
+Quick Image 会先检查附件并给出预估价格。确认价格前不会处理、暂存或上传附件；确认后才会准备附件并创建生成任务。任务完成后，Codex、WorkBuddy 等宿主会在当前任务中返回结果，OpenClaw 会将结果发送到发起请求的会话。
 
 除非用户明确要求分析或描述媒体内容，Agent 会把图片、音频和视频作为不透明输入处理，不主动预览、播放、转录或识别内容；仅使用文件名、大小、类型及生成限制所需的技术元数据。
 
@@ -154,9 +158,9 @@ Quick Image 会先检查附件并给出预估价格。确认价格前不会处�
 
 探测提示未授权或授权失效时，按上文「登录或重新登录 MCP」先征得用户确认再完成授权。
 
-### Codex 查不到 Quick Image 远程 MCP 工具
+### Codex、WorkBuddy 查不到 Quick Image 远程 MCP 工具
 
-完成授权后新建一个 Codex 任务，让 Skill 和 MCP 工具生效；桌面端仍看不到时，完全退出并重新打开 Codex。
+完成授权后新建一个 Codex 任务，让 Skill 和 MCP 工具生效；桌面端仍看不到时，完全退出并重新打开 Codex。WorkBuddy 的具体排查步骤待补充（占位），可先参照 Codex 思路：确认插件已安装并启用、完成 MCP 授权后新建任务，必要时完全退出并重新打开 WorkBuddy。
 
 ### Doctor 集中诊断
 
@@ -173,7 +177,7 @@ npx --yes --prefer-online \
 ## 数据与权限
 
 - 插件支持当前会话附件，以及宿主或 AI 根据用户意图提供的本地文件绝对路径或 Runtime 支持的媒体引用。插件信任调用方提供的具体输入，不校验来源或另行实施目录授权；实际可读范围由宿主进程的系统文件权限和 Runtime 的引用解析规则决定。
-- 发送生成结果时，图片预览由本地 Runtime 受约束下载（仅 HTTPS、拒绝重定向、超时与大小上限、格式校验）到私有缓存目录后，以本地文件投递：OpenClaw 投递给聊天渠道并按本地检测出的格式标注带扩展名的文件名；Codex 等仅 Markdown 宿主用返回的本地路径嵌入图片预览。下载或本地发送失败时退为发送原图链接文本，不回退远程 URL 投递。视频预览直接使用结果地址投递，并用任务结果返回的 `preview_content_type` 标注扩展名文件名。
+- 发送生成结果时，图片预览由本地 Runtime 受约束下载（仅 HTTPS、拒绝重定向、超时与大小上限、格式校验）到私有缓存目录后，以本地文件投递：OpenClaw 投递给聊天渠道并按本地检测出的格式标注带扩展名的文件名；Codex、WorkBuddy 等仅 Markdown 宿主用返回的本地路径嵌入图片预览。下载或本地发送失败时退为发送原图链接文本，不回退远程 URL 投递。视频预览直接使用结果地址投递，并用任务结果返回的 `preview_content_type` 标注扩展名文件名。
 - 插件不提供 Quick Image 云端图库浏览；用户可以直接提供已知的 Quick Image `asset_id`，素材归属和可用性由服务端校验。
 - 报价阶段不上传附件、不扣费，也不锁定最终价格；最终校验和计费以服务端结果为准。
 
