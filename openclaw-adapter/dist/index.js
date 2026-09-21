@@ -287,6 +287,43 @@ import {
   upscaleEstimateInputSchema,
   videoEstimateInputSchema
 } from "quick-image-agent-runtime";
+
+// src/openclaw-adapter/environment-check.ts
+import { Worker } from "worker_threads";
+var ENVIRONMENT_CHECK_TIMEOUT_MS = 1e4;
+function runEnvironmentProductionCheck() {
+  return new Promise((resolve) => {
+    let settled = false;
+    const settle = (report) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve(report);
+    };
+    const worker = new Worker(new URL("./environment-check-worker.js", import.meta.url));
+    const timeout = setTimeout(() => {
+      void worker.terminate().catch(() => void 0).then(() => settle(unavailableEnvironmentReport()));
+    }, ENVIRONMENT_CHECK_TIMEOUT_MS);
+    timeout.unref();
+    worker.once("message", (report) => settle(report));
+    worker.once("error", () => {
+      void worker.terminate().catch(() => void 0).then(() => settle(unavailableEnvironmentReport()));
+    });
+    worker.once("exit", (exitCode) => {
+      if (exitCode !== 0) settle(unavailableEnvironmentReport());
+    });
+  });
+}
+function unavailableEnvironmentReport() {
+  return {
+    hosts: [
+      { host: "codex", available: false, is_production: null, source: "unavailable" },
+      { host: "openclaw", available: false, is_production: null, source: "unavailable" }
+    ]
+  };
+}
+
+// src/openclaw-adapter/local-tools.ts
 var OPENCLAW_LOCAL_TOOL_NAMES = [
   "quick_image_inspect_attachment",
   "quick_image_prepare_attachment",
@@ -294,7 +331,8 @@ var OPENCLAW_LOCAL_TOOL_NAMES = [
   "quick_image_estimate_pose_credits",
   "quick_image_estimate_upscale_credits",
   "quick_image_estimate_video_credits",
-  "quick_image_upload_staged_attachment"
+  "quick_image_upload_staged_attachment",
+  "quick_image_check_environment"
 ];
 var inspectInputSchema = z.object({
   attachment_id: z.string().regex(/^qio_[A-Za-z0-9_-]{43}$/).optional(),
@@ -324,7 +362,8 @@ function createOpenClawLocalTools(registry, pipelineProvider, context) {
     createPoseEstimateTool(),
     createUpscaleEstimateTool(),
     createVideoEstimateTool(),
-    createUploadTool(pipelineProvider, context)
+    createUploadTool(pipelineProvider, context),
+    createEnvironmentCheckTool()
   ];
 }
 function createInspectTool(registry, pipelineProvider, context) {
@@ -504,6 +543,27 @@ function createVideoEstimateTool() {
       }
     })
   );
+}
+function createEnvironmentCheckTool() {
+  return {
+    name: "quick_image_check_environment",
+    label: "\u68C0\u67E5 Quick Image \u662F\u5426\u6B63\u5F0F\u73AF\u5883",
+    description: "\u68C0\u67E5\u672C\u673A Codex \u4E0E OpenClaw \u5BBF\u4E3B\u5F53\u524D\u751F\u6548\u7684 Quick Image MCP \u73AF\u5883\u662F\u5426\u4E3A\u6B63\u5F0F\u73AF\u5883\uFF08production\uFF09\u3002\u4EC5\u8FD4\u56DE\u5404\u5BBF\u4E3B\u662F\u5426\u6B63\u5F0F\u73AF\u5883\u3001\u914D\u7F6E\u6765\u6E90\u4E0E\u662F\u5426\u53EF\u68C0\u67E5\uFF1B\u4E0D\u8FD4\u56DE\u4EFB\u4F55\u670D\u52A1\u5668\u6216\u524D\u7AEF\u5730\u5740\u3002\u7528\u6237\u6000\u7591\u8FDE\u5230\u4E86\u975E\u6B63\u5F0F\u73AF\u5883\u3001\u6216\u4EFB\u52A1\u884C\u4E3A\u5F02\u5E38\u9700\u8981\u6392\u9664\u73AF\u5883\u56E0\u7D20\u65F6\u4F7F\u7528\u3002",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {}
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false
+    },
+    async execute(_toolCallId, _rawParameters) {
+      return executeLocalTool(() => runEnvironmentProductionCheck());
+    }
+  };
 }
 function estimateTool(name, label, description, schema, estimate) {
   return {
