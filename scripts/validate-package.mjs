@@ -15,6 +15,8 @@ const packageJson = await readJson("package.json");
 const portableManifest = await readJson("plugin.json");
 const portableMcp = await readJson("mcp.json");
 const codexManifest = await readJson(".codex-plugin/plugin.json");
+const codeBuddyManifest = await readJson(".codebuddy-plugin/plugin.json");
+const workBuddyManifest = await readJson(".workbuddy-plugin/plugin.json");
 const claudeMarketplace = await readJson(".claude-plugin/marketplace.json");
 const codexMarketplace = await readJson(".agents/plugins/marketplace.json");
 const companionMcp = await readJson(".mcp.json");
@@ -70,10 +72,21 @@ if (codexMarketplace.name !== "quick-image" || codexMarketplace.plugins?.length 
 
 for (const [name, manifest] of [
   ["plugin.json", portableManifest],
-  ["Codex manifest", codexManifest]
+  ["Codex manifest", codexManifest],
+  ["CodeBuddy manifest", codeBuddyManifest],
+  ["WorkBuddy manifest", workBuddyManifest]
 ]) {
   if (manifest.name !== "quick-image") errors.push(`${name}: plugin name must be quick-image`);
   if (manifest.version !== packageJson.version) errors.push(`${name}: version must match package.json`);
+}
+if (codeBuddyManifest.mcpServers !== "./mcp.json") {
+  errors.push("CodeBuddy manifest: mcpServers must point to ./mcp.json");
+}
+if (workBuddyManifest.mcpServers !== "./.mcp.json") {
+  errors.push("WorkBuddy manifest: mcpServers must point to ./.mcp.json");
+}
+if (workBuddyManifest.skills !== "./skills/") {
+  errors.push("WorkBuddy manifest: skills must point to ./skills/");
 }
 if (portableManifest.$schema !== "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json") {
   errors.push("plugin.json: unsupported Agent Plugins schema");
@@ -134,6 +147,8 @@ if (readmeRuntimeVersionedSpecs.length > 0 || !readme.includes(runtimePackageLat
 
 for (const required of [
   ".agents/plugins/marketplace.json",
+  ".codebuddy-plugin/plugin.json",
+  ".workbuddy-plugin/plugin.json",
   "openclaw.plugin.json",
   "openclaw-adapter/dist/index.js",
   "openclaw-adapter/dist/environment-check-worker.js",

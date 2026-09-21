@@ -68,9 +68,9 @@
   - OpenClaw 调用 `quick_image_send_preview`，传任务结果的 `display_url`、原文件 `url` 作为 `download_url`、结果的 `preview_content_type` 和 `media_kind="image"`。该工具只使用当前会话可信路由，不接收也不得另行指定 `channel`、`to`、`target`、账号或 thread。
   - 图片预览由本地 Runtime 受约束下载到私有缓存后以本地文件投递；`preview_content_type` 仅作参考，文件扩展名以本地检测出的格式为准。成功结果包含 `delivered_via: "local_file"`。
   - OpenClaw 的原生媒体规则适用于各渠道，具体上传和发送由当前渠道适配器处理，不要改用通用 `message` 或渠道专属工具。
-  - OpenClaw 不要仅输出 Markdown 图片作为媒体回退；Codex 先调用本地 `download_preview_media({ display_url })` 把图片预览受约束下载到本地缓存，再用返回的 `file_path` 在同一回合内通过 Markdown 图片嵌入预览，并紧跟使用 `url` 的下载原图链接。
+  - OpenClaw 不要仅输出 Markdown 图片作为媒体回退；Codex、WorkBuddy 等通用 MCP 宿主先调用本地 `download_preview_media({ display_url })` 把图片预览受约束下载到本地缓存，再用返回的 `file_path` 在同一回合内通过 Markdown 图片嵌入预览，并紧跟使用 `url` 的下载原图链接。
   - 不得用 `url` 代替 `display_url` 预览，也不得用 `display_url` 代替原图下载链接。OpenClaw 全部媒体发送完成后最终回复使用 `NO_REPLY`，避免同一结果再次作为普通文本发送。
-- `quick_image_send_preview`（OpenClaw）或 `download_preview_media`（Codex）返回 `isError`（稳定错误码如 `PREVIEW_DOWNLOAD_FAILED`、`PREVIEW_SEND_FAILED`、`PREVIEW_URL_REJECTED`、`PREVIEW_DOWNLOAD_INVALID_MEDIA`）时，按其 `suggested_action` 的指示直接向用户发送原图链接文本即可；OpenClaw 的 `suggested_action` 已内嵌原图链接，Codex 的 `suggested_action` 只是固定指令文本，原图链接改用任务结果的 `url`。不要重试工具、不要改用 Markdown 图片投递、也不要换成远程 URL 方式再发。
+- `quick_image_send_preview`（OpenClaw）或 `download_preview_media`（Codex、WorkBuddy 等通用 MCP 宿主）返回 `isError`（稳定错误码如 `PREVIEW_DOWNLOAD_FAILED`、`PREVIEW_SEND_FAILED`、`PREVIEW_URL_REJECTED`、`PREVIEW_DOWNLOAD_INVALID_MEDIA`）时，按其 `suggested_action` 的指示直接向用户发送原图链接文本即可；OpenClaw 的 `suggested_action` 已内嵌原图链接，通用 MCP 宿主的 `suggested_action` 只是固定指令文本，原图链接改用任务结果的 `url`。不要重试工具、不要改用 Markdown 图片投递、也不要换成远程 URL 方式再发。
 - `display_url` 为空时不要调用 `quick_image_send_preview` 或 `download_preview_media`，也不要嵌入图片组件；只展示原图下载链接并说明预览不可用。OpenClaw 找不到该工具时，说明原生适配层未安装或未启用并保留下载链接，不要求开放通用 `message` 权限，不退回 Markdown 图片，不重复提交任务。媒体发送失败时同样保留下载链接，不重复提交。视频结果使用 `media_kind="video"`、可用查看地址作为 `display_url`、原视频地址作为 `download_url`，同样传入 `preview_content_type`；视频预览直接使用结果地址投递，不走本地下载。
 - 展示扣费、退款和净消耗。`partial_succeeded` 必须同时说明成功数与失败数。
 - `succeeded`、`partial_succeeded` 和 `failed` 都必须发送独立的最终结果消息；生成失败也不能静默结束。

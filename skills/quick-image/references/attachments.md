@@ -19,7 +19,7 @@
 
 ## 检查与限制校验
 
-- 附件角色和任务参数确定后、报价前，使用 Codex 的 `inspect_attachment` 或 OpenClaw 的 `quick_image_inspect_attachment` 返回的真实媒体类型、`byte_size` 和 `metadata` 检查当前配置中的格式、数量、大小、单个时长与总时长限制。
+- 附件角色和任务参数确定后、报价前，使用通用本地 MCP 的 `inspect_attachment`（Codex、WorkBuddy 等宿主复用）或 OpenClaw 的 `quick_image_inspect_attachment` 返回的真实媒体类型、`byte_size` 和 `metadata` 检查当前配置中的格式、数量、大小、单个时长与总时长限制。
 - 视频计费需要输入时长时，汇总所有输入视频的 `metadata.duration_seconds`。音频时长和文件大小只用于当前模型能力与媒体限制检查，不自行加入计费公式。
 - 媒体元数据缺失或不满足当前配置时停止，不得猜测或继续报价。
 - 本阶段不得调用 `prepare_attachment`、`create_direct_upload` 或 `upload_staged_attachment`。
@@ -34,4 +34,4 @@
     quick-image-doctor --host openclaw
   ```
 - 限制型 `tools.profile` 需要用户将插件 ID `quick-image` 显式加入 `tools.alsoAllow`，不需要通用 `message` 工具。
-- Codex 本地附件工具不可发现或被拒绝时，停止并说明工具不可用；不得声称附件尚未生成或要求用户反复重发。
+- 通用 MCP 宿主（Codex、WorkBuddy 等）的本地附件工具不可发现或被拒绝时，停止并说明工具不可用；不得声称附件尚未生成或要求用户反复重发。

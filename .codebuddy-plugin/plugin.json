@@ -1,0 +1,20 @@
+{
+  "name": "quick-image",
+  "version": "0.1.8",
+  "description": "Quick Image 图像与视频生成插件：检查会话附件或本地媒体，执行搭配出图、换姿、高清与视频生成。",
+  "description_en": "Inspect host-provided conversation attachments or local media and run Quick Image generation workflows.",
+  "author": {
+    "name": "Minded One, LLC",
+    "url": "https://quickimage.ai"
+  },
+  "homepage": "https://quickimage.ai",
+  "repository": "https://github.com/beansmile/quick-image-agent-plugin",
+  "license": "LicenseRef-Quick-Image",
+  "keywords": [
+    "image-generation",
+    "video-generation",
+    "mcp",
+    "agent-skill"
+  ],
+  "mcpServers": "./mcp.json"
+}

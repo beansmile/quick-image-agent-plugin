@@ -15,6 +15,8 @@ if (!pluginVersionPattern.test(version ?? "")) {
 const packageJson = await readJson("package.json");
 const portableManifest = await readJson("plugin.json");
 const codexManifest = await readJson(".codex-plugin/plugin.json");
+const codeBuddyManifest = await readJson(".codebuddy-plugin/plugin.json");
+const workBuddyManifest = await readJson(".workbuddy-plugin/plugin.json");
 const openClawManifest = await readJson("openclaw.plugin.json");
 const portableMcp = await readJson("mcp.json");
 const companionMcp = await readJson(".mcp.json");
@@ -22,6 +24,8 @@ const companionMcp = await readJson(".mcp.json");
 packageJson.version = version;
 portableManifest.version = version;
 codexManifest.version = version;
+codeBuddyManifest.version = version;
+workBuddyManifest.version = version;
 openClawManifest.version = version;
 setMcpPluginVersion(portableMcp, "mcp.json", ["headers"]);
 setMcpPluginVersion(companionMcp, ".mcp.json", ["headers", "http_headers"]);
@@ -30,6 +34,8 @@ await Promise.all([
   writeJsonAtomic("package.json", packageJson),
   writeJsonAtomic("plugin.json", portableManifest),
   writeJsonAtomic(".codex-plugin/plugin.json", codexManifest),
+  writeJsonAtomic(".codebuddy-plugin/plugin.json", codeBuddyManifest),
+  writeJsonAtomic(".workbuddy-plugin/plugin.json", workBuddyManifest),
   writeJsonAtomic("openclaw.plugin.json", openClawManifest),
   writeJsonAtomic("mcp.json", portableMcp),
   writeJsonAtomic(".mcp.json", companionMcp)

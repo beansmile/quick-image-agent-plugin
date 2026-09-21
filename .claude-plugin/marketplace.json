@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "quick-image",
-      "description": "为 Codex 和 OpenClaw 安全检查、上传对话附件并使用 Quick Image 生成图片或视频。",
+      "description": "为 Codex、WorkBuddy、OpenClaw 等 Agent 宿主安全检查、上传对话附件并使用 Quick Image 生成图片或视频。",
       "author": { "name": "Minded One, LLC" },
       "source": "./",
       "category": "design",
