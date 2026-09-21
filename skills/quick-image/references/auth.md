@@ -1,6 +1,6 @@
 # MCP 连接、状态检查与授权
 
-本文件是 MCP 故障的唯一处理入口。只要 Quick Image MCP 无法连接、不可调用、未出现在工具列表、在启动/发现阶段失败，或 `get_generation_config` 无法调用，就先停止业务流程并按本文件检查；不得继续列模板、报价、上传或提交任务。
+本文件是 Quick Image 授权与登录的处理入口。用户主动要求登录时，直接按第 2 节说明进入宿主登录流程；只要 Quick Image MCP 无法连接、不可调用、未出现在工具列表、在启动/发现阶段失败，或 `get_generation_config` 无法调用，就先停止业务流程并按本文件检查；不得继续列模板、报价、上传或提交任务。
 
 ## 0. 瞬时认证错误先重试
 
@@ -49,6 +49,8 @@ codex mcp get quick-image
 
 ## 2. 待授权时先征得确认
 
+用户主动要求登录时，无需发送下面的确认问句，也无需先做第 1 节状态检查，直接按第 3 节或第 4 节当前宿主的登录流程执行，凭据安全约束不变。
+
 向用户发送以下首句，不要用“无法可靠读取/列出模板”替代：
 
 > Quick Image 当前未登录或授权不可用，需要现在登录吗？
@@ -57,7 +59,7 @@ codex mcp get quick-image
 
 ## 3. Codex 登录流程
 
-用户确认后，通过宿主 `exec` 执行固定命令：
+经用户确认或用户主动要求登录后，通过宿主 `exec` 执行固定命令：
 
 ```bash
 codex mcp login quick-image
@@ -69,7 +71,7 @@ codex mcp login quick-image
 
 ## 4. OpenClaw 登录流程
 
-用户确认后，通过宿主 `exec` 执行第一条固定命令：
+经用户确认或用户主动要求登录后，通过宿主 `exec` 执行第一条固定命令：
 
 ```bash
 openclaw mcp login quick-image
