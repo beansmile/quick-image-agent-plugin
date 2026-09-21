@@ -1,36 +1,30 @@
 import { readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { runtimePackageForTag, runtimePackageUrlSource } from "./lib/runtime-package.mjs";
+import { runtimePackageForVersion } from "./lib/runtime-package.mjs";
 
-const tag = process.argv[2];
+const version = process.argv[2];
 const root = process.cwd();
-const runtimePackage = runtimePackageForTag(tag);
+const runtimePackage = runtimePackageForVersion(version);
+
 const packageJson = await readJson("package.json");
 const portableMcp = await readJson("mcp.json");
 const codexMcp = await readJson(".mcp.json");
 
-packageJson.dependencies["quick-image-agent-runtime"] = runtimePackage;
+if (typeof packageJson.dependencies !== "object" || packageJson.dependencies === null) {
+  throw new Error("package.json 缺少 dependencies 配置");
+}
+packageJson.dependencies["quick-image-agent-runtime"] = version;
 setRuntimePackage(portableMcp, "mcp.json");
 setRuntimePackage(codexMcp, ".mcp.json");
-
-const runtimeUrlPattern = new RegExp(runtimePackageUrlSource, "g");
-const readme = await readFile(path.join(root, "README.md"), "utf8").catch((error) => {
-  if (error?.code === "ENOENT") return "";
-  throw error;
-});
-if ((readme.match(runtimeUrlPattern) ?? []).length === 0) {
-  throw new Error("README.md 缺少固定版本的 quick-image-agent-runtime Release tgz 链接");
-}
 
 await Promise.all([
   writeJsonAtomic("package.json", packageJson),
   writeJsonAtomic("mcp.json", portableMcp),
-  writeJsonAtomic(".mcp.json", codexMcp),
-  writeTextAtomic("README.md", readme.replace(runtimeUrlPattern, runtimePackage))
+  writeJsonAtomic(".mcp.json", codexMcp)
 ]);
 
 process.stdout.write(
-  `Quick Image Agent Runtime 已更新为 ${tag}。请运行 pnpm install --lockfile-only 更新锁文件。\n`
+  `Quick Image Agent Runtime 已更新为 ${version}。请运行 pnpm install 更新锁文件和 node_modules。\n`
 );
 
 function setRuntimePackage(config, name) {
@@ -46,12 +40,8 @@ async function readJson(file) {
 }
 
 async function writeJsonAtomic(file, value) {
-  await writeTextAtomic(file, `${JSON.stringify(value, null, 2)}\n`);
-}
-
-async function writeTextAtomic(file, value) {
   const target = path.join(root, file);
   const temporary = `${target}.${process.pid}.tmp`;
-  await writeFile(temporary, value, "utf8");
+  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, "utf8");
   await rename(temporary, target);
 }

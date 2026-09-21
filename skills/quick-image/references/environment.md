@@ -14,7 +14,7 @@
 
 ```bash
 npx --yes --prefer-online \
-  --package https://github.com/beansmile/quick-image-agent-runtime/releases/latest/download/quick-image-agent-runtime.tgz \
+  --package quick-image-agent-runtime@latest \
   quick-image env reset --host codex
 ```
 

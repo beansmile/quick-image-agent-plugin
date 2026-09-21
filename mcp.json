@@ -5,7 +5,7 @@
       "type": "streamable-http",
       "url": "https://quickimage.ai/mcp",
       "headers": {
-        "X-Quick-Image-Plugin-Version": "0.1.6",
+        "X-Quick-Image-Plugin-Version": "0.1.8",
         "X-Quick-Image-Frontend-URL": "https://quickimage.ai"
       }
     },
@@ -15,7 +15,7 @@
       "args": [
         "--yes",
         "--package",
-        "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.8/quick-image-agent-runtime.tgz",
+        "quick-image-agent-runtime@0.2.8",
         "quick-image-local-mcp"
       ]
     }

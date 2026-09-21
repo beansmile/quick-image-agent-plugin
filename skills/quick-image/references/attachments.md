@@ -30,7 +30,7 @@
 
   ```bash
   npx --yes --prefer-online \
-    --package https://github.com/beansmile/quick-image-agent-runtime/releases/latest/download/quick-image-agent-runtime.tgz \
+    --package quick-image-agent-runtime@latest \
     quick-image-doctor --host openclaw
   ```
 - 限制型 `tools.profile` 需要用户将插件 ID `quick-image` 显式加入 `tools.alsoAllow`，不需要通用 `message` 工具。

@@ -78,6 +78,6 @@
 ## 10. 版本号更新
 
 - 更新 Agent Plugin 版本号时，优先执行 `pnpm plugin:set <major>.<minor>.<patch>`，由脚本同步 `package.json`、各宿主 Plugin manifest 和 MCP 版本 header，避免手动修改遗漏。
-- 更新 `quick-image-agent-runtime` 版本时，优先执行 `pnpm runtime:set v<major>.<minor>.<patch>`，再执行 `pnpm install --lockfile-only` 更新锁文件，避免只修改依赖或 MCP 配置的一部分。
+- 更新 `quick-image-agent-runtime` 版本时，执行 `pnpm runtime:set <major>.<minor>.<patch>` 同步 `package.json` 依赖与两份 MCP 清单中的版本号，再执行 `pnpm install` 更新锁文件并同步 `node_modules`，保证本地校验运行在新版 Runtime 上。
 - Plugin 和 Runtime 均只允许使用 `major.minor.patch` 格式的稳定版本，不得设置 `-rc.1` 等 prerelease 版本。
 - 两个版本独立维护；完成更新后执行 `pnpm validate`，发布前按开发文档运行完整校验。

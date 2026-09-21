@@ -48,7 +48,7 @@ describe("Codex plugin contract", () => {
     expect(runtimeArgs[2]).toMatch(runtimePackagePattern);
     expect(runtimeArgs[3]).toBe("quick-image-local-mcp");
     expect(portableMcpConfig.mcpServers["quick-image-local"].args).toEqual(runtimeArgs);
-    expect(packageJson.dependencies["quick-image-agent-runtime"]).toBe(runtimeArgs[2]);
+    expect(packageJson.dependencies["quick-image-agent-runtime"]).toBe(runtimeArgs[2]?.replace(/^quick-image-agent-runtime@/, ""));
     expect(packageJson).not.toHaveProperty("bin");
   });
 
@@ -80,7 +80,7 @@ describe("Codex plugin contract", () => {
     });
     expect(mcpConfig.mcpServers["quick-image-local"]).toEqual({
       command: "npx",
-      args: ["--yes", "--package", "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.1.0/quick-image-agent-runtime-0.1.0.tgz", "quick-image-local-mcp"]
+      args: ["--yes", "--package", "quick-image-agent-runtime@0.1.0", "quick-image-local-mcp"]
     });
   });
 });
@@ -112,7 +112,7 @@ async function createPluginFixture() {
       },
       "quick-image-local": {
         command: "npx",
-        args: ["--yes", "--package", "https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.1.0/quick-image-agent-runtime-0.1.0.tgz", "quick-image-local-mcp"]
+        args: ["--yes", "--package", "quick-image-agent-runtime@0.1.0", "quick-image-local-mcp"]
       }
     }
   }));

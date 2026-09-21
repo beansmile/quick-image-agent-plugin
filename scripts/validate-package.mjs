@@ -1,7 +1,12 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import { runtimePackagePattern, runtimePackageUrlSource } from "./lib/runtime-package.mjs";
+import {
+  runtimePackageName,
+  runtimePackageLatestSpec,
+  runtimePackagePattern,
+  runtimePackageSpecSource
+} from "./lib/runtime-package.mjs";
 
 const root = process.cwd();
 const errors = [];
@@ -14,8 +19,8 @@ const claudeMarketplace = await readJson(".claude-plugin/marketplace.json");
 const codexMarketplace = await readJson(".agents/plugins/marketplace.json");
 const companionMcp = await readJson(".mcp.json");
 const openClawManifest = await readJson("openclaw.plugin.json");
-if (packageJson.private !== true) {
-  errors.push("package.json: package must remain private to prevent npm publication");
+if (packageJson.private !== undefined) {
+  errors.push("package.json: private 字段必须移除以允许 npm 发布");
 }
 if (openClawManifest.version !== packageJson.version) {
   errors.push("OpenClaw manifest: version must match package.json");
@@ -109,20 +114,22 @@ for (const [name, server] of [["mcp.json", portableRuntime], ["Codex companion M
   const runtimePackage = server?.args?.[2];
   if (server?.command !== "npx" || server?.args?.[0] !== "--yes" || server?.args?.[1] !== "--package" ||
       server?.args?.[3] !== "quick-image-local-mcp" || !runtimePackagePattern.test(runtimePackage ?? "")) {
-    errors.push(`${name}: local runtime must use a versioned quick-image-agent-runtime Release tgz`);
+    errors.push(`${name}: local runtime must use a versioned quick-image-agent-runtime npm package`);
   }
 }
 if (portableRuntime?.args?.[2] !== companionRuntime?.args?.[2]) {
-  errors.push("MCP configs: local runtime Release tgz must match");
+  errors.push("MCP configs: local runtime npm version must match");
 }
-if (packageJson.dependencies?.["quick-image-agent-runtime"] !== portableRuntime?.args?.[2]) {
-  errors.push("package.json: OpenClaw runtime dependency must match the MCP runtime Release tgz");
+const runtimeDependency = packageJson.dependencies?.["quick-image-agent-runtime"];
+const runtimeDependencySpec =
+  typeof runtimeDependency === "string" ? `${runtimePackageName}@${runtimeDependency}` : undefined;
+if (portableRuntime?.args?.[2] !== runtimeDependencySpec) {
+  errors.push("package.json: OpenClaw runtime dependency must match the MCP runtime npm version");
 }
 const readme = await readFile(path.join(root, "README.md"), "utf8");
-const readmeRuntimeUrls = readme.match(new RegExp(runtimePackageUrlSource, "g")) ?? [];
-if (readmeRuntimeUrls.length === 0 ||
-    readmeRuntimeUrls.some((url) => url !== packageJson.dependencies?.["quick-image-agent-runtime"])) {
-  errors.push("README.md: runtime Release tgz link must match package.json");
+const readmeRuntimeVersionedSpecs = readme.match(new RegExp(runtimePackageSpecSource, "g")) ?? [];
+if (readmeRuntimeVersionedSpecs.length > 0 || !readme.includes(runtimePackageLatestSpec)) {
+  errors.push(`README.md: runtime 命令必须统一使用 ${runtimePackageLatestSpec}`);
 }
 
 for (const required of [
