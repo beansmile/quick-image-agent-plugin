@@ -51,9 +51,11 @@ codex mcp login quick-image
 安装并启用插件：
 
 ```bash
-openclaw plugins install git:https://github.com/beansmile/quick-image-agent-plugin.git
+openclaw plugins install quick-image-agent-plugin --force
 openclaw plugins enable quick-image
 ```
+
+插件从 npm Registry 安装，每次执行都会实时解析最新正式版本；`--force` 允许覆盖已安装版本，因此首次安装与更新使用同一条命令，重复执行是安全的。
 
 然后运行安装向导：
 
@@ -104,7 +106,7 @@ Doctor 不是安装或启用插件的必要步骤，详细用法见 [故障排�
 
 ```bash
 npx --yes --prefer-online \
-  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v<version>/quick-image-agent-runtime.tgz \
+  --package quick-image-agent-runtime@latest \
   quick-image env reset --host <codex|openclaw|all>
 ```
 
@@ -162,7 +164,7 @@ Doctor 不是安装或启用插件的必要步骤。首次安装后想集中检�
 
 ```bash
 npx --yes --prefer-online \
-  --package https://github.com/beansmile/quick-image-agent-runtime/releases/download/v0.2.8/quick-image-agent-runtime.tgz \
+  --package quick-image-agent-runtime@latest \
   quick-image-doctor --host openclaw
 ```
 

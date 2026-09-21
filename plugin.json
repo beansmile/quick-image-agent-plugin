@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "quick-image",
-  "version": "0.1.6",
+  "version": "0.1.8",
   "description": "Inspect host-provided conversation attachments or local media and run Quick Image generation workflows.",
   "author": {
     "name": "Minded One, LLC",
