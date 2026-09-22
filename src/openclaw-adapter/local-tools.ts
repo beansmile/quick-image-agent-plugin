@@ -12,7 +12,6 @@ import {
   videoEstimateInputSchema
 } from "quick-image-agent-runtime";
 import { OpenClawAttachmentRegistry } from "../openclaw/attachment-registry.js";
-import { runEnvironmentProductionCheck } from "./environment-check.js";
 import type { OpenClawNativeTool, OpenClawToolContext, OpenClawToolParameters } from "./types.js";
 
 export const OPENCLAW_LOCAL_TOOL_NAMES = [
@@ -22,8 +21,7 @@ export const OPENCLAW_LOCAL_TOOL_NAMES = [
   "quick_image_estimate_pose_credits",
   "quick_image_estimate_upscale_credits",
   "quick_image_estimate_video_credits",
-  "quick_image_upload_staged_attachment",
-  "quick_image_check_environment"
+  "quick_image_upload_staged_attachment"
 ] as const;
 
 export type AttachmentPipelineProvider = () => Promise<AttachmentPipelinePort>;
@@ -64,8 +62,7 @@ export function createOpenClawLocalTools(
     createPoseEstimateTool(),
     createUpscaleEstimateTool(),
     createVideoEstimateTool(),
-    createUploadTool(pipelineProvider, context),
-    createEnvironmentCheckTool()
+    createUploadTool(pipelineProvider, context)
   ];
 }
 
@@ -265,28 +262,6 @@ function createVideoEstimateTool(): OpenClawNativeTool {
       }
     })
   );
-}
-
-function createEnvironmentCheckTool(): OpenClawNativeTool {
-  return {
-    name: "quick_image_check_environment",
-    label: "检查 Quick Image 是否正式环境",
-    description: "检查本机 Codex 与 OpenClaw 宿主当前生效的 Quick Image MCP 环境是否为正式环境（production）。仅返回各宿主是否正式环境、配置来源与是否可检查；不返回任何服务器或前端地址。用户怀疑连到了非正式环境、或任务行为异常需要排除环境因素时使用。",
-    parameters: {
-      type: "object",
-      additionalProperties: false,
-      properties: {}
-    },
-    annotations: {
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false
-    },
-    async execute(_toolCallId, _rawParameters) {
-      return executeLocalTool(() => runEnvironmentProductionCheck());
-    }
-  };
 }
 
 function estimateTool<T>(

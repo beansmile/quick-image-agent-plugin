@@ -48,7 +48,6 @@ if (openClawManifest.contracts?.tools?.join(",") !== [
   "quick_image_estimate_upscale_credits",
   "quick_image_estimate_video_credits",
   "quick_image_upload_staged_attachment",
-  "quick_image_check_environment",
   "quick_image_send_preview"
 ].join(",")) {
   errors.push("OpenClaw manifest: unexpected native tool contract");
@@ -151,7 +150,6 @@ for (const required of [
   ".workbuddy-plugin/plugin.json",
   "openclaw.plugin.json",
   "openclaw-adapter/dist/index.js",
-  "openclaw-adapter/dist/environment-check-worker.js",
   "skills/quick-image/SKILL.md",
   "DEVELOPMENT.md",
   "LICENSE",

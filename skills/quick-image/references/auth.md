@@ -31,7 +31,7 @@ openclaw mcp doctor --probe quick-image --json
 
 `openclaw mcp status` 只查看本地配置，不连接服务器，不能代替上述探测。
 
-探测通过但重置后仍查不到 Quick Image 远程工具时，说明 MCP 配置、连接与授权均正常：向用户说明该结果，可能是工具策略过滤了远程工具，建议用户按 [attachments.md](attachments.md) 宿主故障处理中的 Doctor 命令做集中诊断，不要猜测或改用其他上传入口。
+探测通过但重置后仍查不到 Quick Image 远程工具时，说明 MCP 配置、连接与授权均正常：向用户说明该结果，可能是工具策略过滤了远程工具，建议用户按 [attachments.md](attachments.md) 宿主故障处理确认插件安装、启用与工具策略，不要猜测或改用其他上传入口。
 
 ### Codex
 

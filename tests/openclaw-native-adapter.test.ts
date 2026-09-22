@@ -12,11 +12,6 @@ import { createOpenClawLocalTools } from "../src/openclaw-adapter/local-tools.js
 import { OpenClawAttachmentRegistry } from "../src/openclaw/attachment-registry.js";
 import { HANDLE_TTL_MS, type AttachmentPipelinePort } from "quick-image-agent-runtime";
 
-// 环境检查在 worker 线程派生 codex/openclaw 本地命令，测试中 mock 掉 runner，只验证工具装配。
-vi.mock("../src/openclaw-adapter/environment-check.js", () => ({
-  runEnvironmentProductionCheck: vi.fn()
-}));
-
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
@@ -59,7 +54,7 @@ describe("OpenClaw native preview adapter", () => {
     const registerCli = vi.fn();
     plugin.register(createApi({ registerTool, registerCli }));
 
-    expect(registerTool).toHaveBeenCalledTimes(10);
+    expect(registerTool).toHaveBeenCalledTimes(9);
     expect(registerCli).toHaveBeenCalledWith(expect.any(Function), expect.objectContaining({
       descriptors: [expect.objectContaining({
         name: "quick-image",
@@ -75,7 +70,6 @@ describe("OpenClaw native preview adapter", () => {
       { name: "quick_image_estimate_upscale_credits" },
       { name: "quick_image_estimate_video_credits" },
       { name: "quick_image_upload_staged_attachment" },
-      { name: "quick_image_check_environment" },
       { name: "quick_image_send_preview" }
     ]);
     expect(registerTool.mock.calls[0]?.[1]).not.toHaveProperty("optional");
@@ -739,28 +733,6 @@ describe("OpenClaw native preview adapter", () => {
     expect(result?.content[0]?.text).toContain('"estimated_credits":20');
   });
 
-  it("exposes the shared environment production check as an OpenClaw native tool", async () => {
-    const { runEnvironmentProductionCheck } = await import("../src/openclaw-adapter/environment-check.js");
-    vi.mocked(runEnvironmentProductionCheck).mockResolvedValue({
-      hosts: [
-        { host: "openclaw", available: true, is_production: false, source: "custom" },
-        { host: "codex", available: false, is_production: null, source: "unavailable" }
-      ]
-    });
-    const tools = createOpenClawLocalTools(
-      new OpenClawAttachmentRegistry("/unused"),
-      async () => createPipelineFixture(),
-      { sessionKey: "session-1" }
-    );
-    const check = tools.find((tool) => tool.name === "quick_image_check_environment");
-
-    const result = await check?.execute("call-1", {});
-
-    expect(runEnvironmentProductionCheck).toHaveBeenCalledTimes(1);
-    expect(result?.content[0]?.text).toContain('"is_production":false');
-    expect(result?.content[0]?.text).toContain('"is_production":null');
-    expect(result).not.toHaveProperty("isError");
-  });
 });
 
 function createApi(overrides: {
