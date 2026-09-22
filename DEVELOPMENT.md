@@ -37,13 +37,13 @@ Plugin 与 Runtime 均发布到 npm Registry（Plugin 供 OpenClaw 以 npm spec 
 - Server：`https://quickimage.ai/mcp`
 - Frontend：`https://quickimage.ai`
 
-Plugin MCP 清单始终提供正式默认地址。本地调试安装通过隔离 Overlay 使用开发地址；维护者需要显式切换已安装宿主时，统一执行 `quick-image-agent-runtime@latest` 中的 `quick-image` CLI。当前 `--host` 仅支持 `codex`、`openclaw` 和 `all`；WorkBuddy 的环境切换与本地调试安装方式待补充（占位）。地址只由命令调用者传入，不写入 Plugin 或 Runtime 源码：
+Plugin MCP 清单始终提供正式默认地址。本地调试安装通过隔离 Overlay 使用开发地址；维护者需要显式切换已安装宿主时，统一执行 `quick-image-agent-runtime@latest` 中的 `quick-image` CLI。当前 `--host` 支持 `codex`、`openclaw` 和 `workbuddy`（Runtime 0.3.0 起提供 workbuddy）；WorkBuddy 通过改写插件安装目录内的 MCP 清单切换环境，需逐个宿主执行。地址只由命令调用者传入，不写入 Plugin 或 Runtime 源码：
 
 ```bash
 npx --yes --prefer-online \
   --package quick-image-agent-runtime@latest \
   quick-image env set \
-  --host <codex|openclaw|all> \
+  --host <codex|openclaw|workbuddy> \
   --server-url https://<server>/mcp \
   --frontend-url https://<frontend>
 ```
@@ -53,14 +53,12 @@ npx --yes --prefer-online \
 ```bash
 npx --yes --prefer-online \
   --package quick-image-agent-runtime@latest \
-  quick-image env status --host <codex|openclaw|all>
+  quick-image env status --host <codex|openclaw|workbuddy>
 
 npx --yes --prefer-online \
   --package quick-image-agent-runtime@latest \
-  quick-image env reset --host <codex|openclaw|all>
+  quick-image env reset --host <codex|openclaw|workbuddy>
 ```
-
-Runtime CLI 对 Codex 的处理方式：在 `~/.codex/config.toml` 末尾追加（或替换）带 `# BEGIN/END quick-image managed MCP environment` 标记的 `mcp_servers.quick-image` 管理区块。该区块优先于插件清单地址，且不受 Codex 重建插件缓存（marketplace 重新 clone、`plugins/cache` 重建）影响；插件清单本身不会被修改。写入前原文件备份为 `config.toml.quick-image-backup`，写入为原子替换并经 `codex mcp list/get` 验证，失败自动恢复原文；`reset` 删除该区块，Codex 自动回落到插件清单的正式默认地址。OpenClaw CLI 使用宿主正式的 `mcp set` 与 `mcp reload`。本地 MCP 的 `check_environment` 工具可检查各宿主当前是否正式环境（不返回地址）。Server 路径必须是 `/mcp`；远程地址必须使用 HTTPS，仅 loopback 本地调试允许 HTTP。修改 URL 后需按命令输出重新完成 OAuth，Codex 还需新建任务加载配置。
 
 ## Codex 本地调试
 
@@ -152,7 +150,7 @@ Agent 不以 owner 验证或会话类型作为远程授权前置条件，但必�
 
 OpenClaw 原生 manifest 不负责导入 MCP 配置。正式安装流程必须登记唯一的远程 MCP，并在安装或更新完成后重启 Gateway 以加载新安装的 Plugin；完成登录后无需再次重启。
 
-Runtime 包中的 Doctor 是可选安装验证与故障排查工具，不是插件启用前置条件。Quick Image 不注册会话内容 Hook 或 owner 专属 Trusted Tool Policy，也不在原生运行时额外限制私聊或群聊。共享 Skill 要求 Agent 根据当前会话上下文仅执行 owner 发出的 Quick Image 生成指令，但远程授权流程不以 owner 验证或会话类型作为前置条件，只负责提示 code 保密。这些都属于模型行为约束，不构成原生运行时安全边界。实际访问范围仍由 OpenClaw 自身的渠道访问策略和工具策略决定；Doctor 只检查 Quick Image 原生工具是否被当前工具策略开放。
+Runtime 包不提供独立的安装诊断命令；安装验证依赖宿主自身的连接与授权探测。Quick Image 不注册会话内容 Hook 或 owner 专属 Trusted Tool Policy，也不在原生运行时额外限制私聊或群聊。共享 Skill 要求 Agent 根据当前会话上下文仅执行 owner 发出的 Quick Image 生成指令，但远程授权流程不以 owner 验证或会话类型作为前置条件，只负责提示 code 保密。这些都属于模型行为约束，不构成原生运行时安全边界。实际访问范围仍由 OpenClaw 自身的渠道访问策略和工具策略决定；原生工具是否被当前工具策略开放，由用户按共享 Skill 的宿主故障处理说明检查插件安装、启用与 `tools.alsoAllow` 配置。
 
 内置适配层使用 `message_received` 登记入站媒体，并通过 `quick_image_list_attachments` 返回不含路径的附件 ID。`quick_image_send_preview` 只向当前会话的可信路由发送 Quick Image 预览，不接受任意渠道、收件人或消息正文。通用 `message` 工具不属于 Quick Image 所需权限。
 

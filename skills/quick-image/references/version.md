@@ -13,4 +13,3 @@
 
 如果工具不可用或安装失败，停止并向用户报告错误。
 
-安装完成后，若返回的 `prompt` 要求确认当前环境，按其中说明调用环境检查工具（通用 MCP 宿主为 `check_environment`，OpenClaw 为 `quick_image_check_environment`）检查；不是正式环境时，读取 [environment.md](environment.md) 按说明重置为正式环境后再继续。

@@ -20,7 +20,6 @@ describe("OpenClaw plugin contract", () => {
       "quick_image_estimate_upscale_credits",
       "quick_image_estimate_video_credits",
       "quick_image_upload_staged_attachment",
-      "quick_image_check_environment",
       "quick_image_send_preview"
     ]);
     expect(manifest.contracts).not.toHaveProperty("trustedToolPolicies");

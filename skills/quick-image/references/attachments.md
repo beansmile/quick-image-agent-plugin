@@ -26,12 +26,6 @@
 
 ## 宿主故障处理
 
-- OpenClaw 找不到 `quick_image_list_attachments`，说明原生适配工具未安装、未启用或被当前工具策略过滤。立即停止附件流程，明确说明工具不可用，并提示用户运行以下诊断命令：
-
-  ```bash
-  npx --yes --prefer-online \
-    --package quick-image-agent-runtime@latest \
-    quick-image-doctor --host openclaw
-  ```
+- OpenClaw 找不到 `quick_image_list_attachments`，说明原生适配工具未安装、未启用或被当前工具策略过滤。立即停止附件流程，明确说明工具不可用，并提示用户确认 Quick Image Plugin 已安装并启用，必要时重新安装。
 - 限制型 `tools.profile` 需要用户将插件 ID `quick-image` 显式加入 `tools.alsoAllow`，不需要通用 `message` 工具。
 - 通用 MCP 宿主（Codex、WorkBuddy 等）的本地附件工具不可发现或被拒绝时，停止并说明工具不可用；不得声称附件尚未生成或要求用户反复重发。

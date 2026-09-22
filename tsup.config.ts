@@ -14,8 +14,7 @@ const shared = {
 export default defineConfig({
   ...shared,
   entry: {
-    index: "src/openclaw-adapter/index.ts",
-    "environment-check-worker": "src/openclaw-adapter/environment-check-worker.ts"
+    index: "src/openclaw-adapter/index.ts"
   },
   outDir: "openclaw-adapter/dist",
   target: "node22"
