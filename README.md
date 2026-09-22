@@ -98,23 +98,17 @@ openclaw mcp login quick-image --code '<授权码>'
 
 登录成功后无需重启 Gateway。建议在当前对话中发送 `/reset` 重置会话上下文；若重置后仍无法使用 Quick Image，再执行 `openclaw mcp probe quick-image` 排查连接状态。
 
-#### 安装验证
-
-Doctor 不是安装或启用插件的必要步骤，详细用法见 [故障排查与修复](#故障排查与修复)。
-
 ### 检查环境与恢复正式默认
-
-本地工具 `check_environment` 可随时检查各宿主当前生效的 Quick Image 环境是否为正式环境（production），当前可检查的宿主以工具返回为准；它只返回是否正式环境、配置来源与宿主是否可检查，不会返回任何服务器或前端地址。Codex、WorkBuddy 等宿主的本地 MCP 与 OpenClaw 原生工具（`quick_image_check_environment`）都提供该检查。
 
 如果维护者曾切换过环境、需要恢复为默认的正式环境，执行：
 
 ```bash
 npx --yes --prefer-online \
   --package quick-image-agent-runtime@latest \
-  quick-image env reset --host <codex|openclaw|all>
+  quick-image env reset --host <codex|openclaw|workbuddy>
 ```
 
-`reset` 会把 Quick Image MCP 恢复为正式环境配置，不影响其他配置内容，可安全重复执行；`--host` 当前仅支持 `codex`、`openclaw` 和 `all`，WorkBuddy 的环境切换与恢复方式待补充（占位）。恢复后需重新完成授权：Codex 重新执行 `codex mcp login quick-image` 并新建任务加载配置；OpenClaw 重新执行 `openclaw mcp login quick-image`，配置即时生效，无需重启 Gateway。
+`reset` 会把 Quick Image MCP 恢复为正式环境配置，不影响其他配置内容，可安全重复执行；`--host` 支持 `codex`、`openclaw` 和 `workbuddy`（Runtime 0.3.0 起提供 workbuddy，需逐个宿主执行）。恢复后需重新完成授权：Codex 重新执行 `codex mcp login quick-image` 并新建任务加载配置；WorkBuddy 完全退出并重新打开后重新完成 quick-image MCP 授权；OpenClaw 重新执行 `openclaw mcp login quick-image`，配置即时生效，无需重启 Gateway。
 
 ## 如何使用
 
@@ -154,25 +148,13 @@ Quick Image 会先检查附件并给出预估价格。确认价格前不会处�
    openclaw gateway restart
    ```
 
-5. 以上均无效时，确认插件已安装并启用，必要时重新安装，并参考下方 Doctor 做集中诊断。
+5. 以上均无效时，确认插件已安装并启用，必要时重新安装。
 
 探测提示未授权或授权失效时，按上文「登录或重新登录 MCP」先征得用户确认再完成授权。
 
 ### Codex、WorkBuddy 查不到 Quick Image 远程 MCP 工具
 
 完成授权后新建一个 Codex 任务，让 Skill 和 MCP 工具生效；桌面端仍看不到时，完全退出并重新打开 Codex。WorkBuddy 的具体排查步骤待补充（占位），可先参照 Codex 思路：确认插件已安装并启用、完成 MCP 授权后新建任务，必要时完全退出并重新打开 WorkBuddy。
-
-### Doctor 集中诊断
-
-Doctor 不是安装或启用插件的必要步骤。首次安装后想集中检查工具策略、媒体依赖、私有状态目录和上传策略，或遇到 Quick Image 工具不可用时，可选执行：
-
-```bash
-npx --yes --prefer-online \
-  --package quick-image-agent-runtime@latest \
-  quick-image-doctor --host openclaw
-```
-
-命令只执行诊断，不修改 OpenClaw 配置。输出 `ok: false` 时，根据对应检查项修复后重启 Gateway。
 
 ## 数据与权限
 

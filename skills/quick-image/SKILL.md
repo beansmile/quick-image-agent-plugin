@@ -26,28 +26,23 @@ description: 使用 Quick Image 对当前会话附件或宿主可访问的本地
 
 不得把上述情况改写成“无法可靠列出模板”后直接结束，也不得猜测模板、继续报价、上传或提交任务。会话重置提示、状态检查、MCP 配置重载、网络故障分类、用户确认和各宿主登录命令全部按 [auth.md](references/auth.md) 执行；用户确认前不得执行登录命令。
 
-用户主动要求登录 Quick Image 时，同样读取 [auth.md](references/auth.md) 并直接按其中宿主登录流程执行；登录与环境检查互不依赖，不得先检查环境或要求切换正式环境。
+用户主动要求登录 Quick Image 时，同样读取 [auth.md](references/auth.md) 并直接按其中宿主登录流程执行。
 
 ## 版本升级与重装
 
 用户询问是否有新版本、明确请求更新或重装 Plugin，或 MCP 工具返回 `upgrade_required` 时，读取 [version.md](references/version.md) 并按其中流程处理。发生 `upgrade_required` 时，完成更新前停止当前生成流程。
 
-## 环境检查与重置
-
-安装或更新完成后按安装指令确认 Quick Image 是否为正式环境，本地环境检查工具（通用 MCP 宿主为 `check_environment`，OpenClaw 为 `quick_image_check_environment`）显示当前不是正式环境，或用户要求检查环境、恢复正式环境时，读取 [environment.md](references/environment.md) 并按其中流程处理。本节仅在安装或更新完成、或用户明确要求时进入，不得作为登录、生成或查询任务的前置步骤。
-
 ## 按阶段读取规则
 
 只在进入对应阶段时读取 reference，避免把全部能力规则常驻在上下文中：
 
-1. 开始时先按宿主工具发现能力查找 Quick Image 远程工具和本地工具。除 OpenClaw 使用原生工具外，Codex、WorkBuddy 等宿主复用同一套通用 MCP 工具。远程工具包括 `get_agent_plugin_installation_plan`、`get_generation_config`、`create_direct_upload`、`submit_lookbook_task`、`submit_pose_task`、`submit_upscale_task`、`submit_video_task`、`list_generation_tasks` 和 `get_generation_tasks`；通用本地 MCP 工具包括 `inspect_attachment`、`prepare_attachment`、`estimate_lookbook_credits`、`estimate_pose_credits`、`estimate_upscale_credits`、`estimate_video_credits`、`upload_staged_attachment`、`download_preview_media` 和 `check_environment`；OpenClaw 原生工具包括 `quick_image_list_attachments`、`quick_image_inspect_attachment`、`quick_image_prepare_attachment`、`quick_image_estimate_lookbook_credits`、`quick_image_estimate_pose_credits`、`quick_image_estimate_upscale_credits`、`quick_image_estimate_video_credits`、`quick_image_upload_staged_attachment`、`quick_image_check_environment` 和 `quick_image_send_preview`。
+1. 开始时先按宿主工具发现能力查找 Quick Image 远程工具和本地工具。除 OpenClaw 使用原生工具外，Codex、WorkBuddy 等宿主复用同一套通用 MCP 工具。远程工具包括 `get_agent_plugin_installation_plan`、`get_generation_config`、`create_direct_upload`、`submit_lookbook_task`、`submit_pose_task`、`submit_upscale_task`、`submit_video_task`、`list_generation_tasks` 和 `get_generation_tasks`；通用本地 MCP 工具包括 `inspect_attachment`、`prepare_attachment`、`estimate_lookbook_credits`、`estimate_pose_credits`、`estimate_upscale_credits`、`estimate_video_credits`、`upload_staged_attachment` 和 `download_preview_media`；OpenClaw 原生工具包括 `quick_image_list_attachments`、`quick_image_inspect_attachment`、`quick_image_prepare_attachment`、`quick_image_estimate_lookbook_credits`、`quick_image_estimate_pose_credits`、`quick_image_estimate_upscale_credits`、`quick_image_estimate_video_credits`、`quick_image_upload_staged_attachment` 和 `quick_image_send_preview`。
 2. 发现工具后调用 `get_generation_config`。确定能力、模型、参数、模板、附件角色和动态限制前，读取 [parameters.md](references/parameters.md)。不要使用记忆中的旧配置或固定限制。
 3. 任务需要附件时，读取 [attachments.md](references/attachments.md)，根据用户意图从会话附件中选择媒体，或由宿主或 AI 确定本地媒体绝对路径或媒体引用，再检查附件并保留一次性 `attachment_handle`。检查阶段不得准备、上传或创建直传信息。
 4. 需要报价、等待用户确认、确认后上传或提交任务时，读取 [submission.md](references/submission.md)。只调用与当前能力对应的估价和提交工具；本地预估完成并取得用户确认后才执行上传，余额不足时立即停止。
 5. 任务提交成功、需要轮询、发送结果或查询历史时，读取 [results.md](references/results.md)。
 6. 工具字段语义不明确时读取 [tools.md](references/tools.md)；它是工具契约参考，不替代当前 MCP Schema 或 `get_generation_config` 返回的动态约束。
 7. 进入版本升级或重装流程时读取 [version.md](references/version.md)，按安装指令完成宿主操作后再恢复业务流程。
-8. 安装或更新完成后需要确认环境，或需要把 Quick Image 重置回正式环境时，读取 [environment.md](references/environment.md)。
 
 ## 宿主边界
 

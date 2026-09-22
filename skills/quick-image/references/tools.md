@@ -28,7 +28,6 @@
 - `estimate_video_credits` / `quick_image_estimate_video_credits({ estimation_contract_version, pricing, output_duration_seconds, input_video_duration_seconds, confirmation_thresholds })`：预估视频积分；没有视频输入时 `input_video_duration_seconds` 传 `null`。
 - `upload_staged_attachment` / `quick_image_upload_staged_attachment({ staged_handle, direct_upload })`：分别是通用本地 MCP 与 OpenClaw 原生入口，校验暂存文件后按服务端结果执行 PUT，或跳过已验证素材的重复上传；成功后返回 `asset_id`。
 - `download_preview_media({ display_url })`：通用本地 MCP 工具（Codex、WorkBuddy 等宿主复用）；把任务结果的图片预览受约束下载（仅 HTTPS、拒绝重定向、超时与大小上限、magic bytes 仅接受 JPEG/PNG/WebP）到本地私有缓存，返回本地绝对路径 `file_path`、检测出的 `content_type` 和 `bytes`。同 URL 命中缓存不重复下载；缓存文件在返回后继续存在，仅按容量从旧到新淘汰，拿到路径后应在当前回合内完成预览展示。视频预览不走本工具。
-- `check_environment` / `quick_image_check_environment()`：分别是通用本地 MCP 与 OpenClaw 原生入口。检查本机各宿主当前生效的 Quick Image MCP 是否为正式环境（production），返回各宿主 `is_production`（`false` 为测试环境，`null` 为无法检查）、配置来源与是否可检查，不返回任何服务器或前端地址；当前版本可检查的宿主以工具返回为准。环境检查与重置流程见 [environment.md](environment.md)。
 
 本地文件路径或媒体引用可以由宿主原生能力或 AI 根据用户意图确定。Quick Image 本地工具信任调用方提供的具体输入，不校验来源或另行实施目录授权；实际可读范围由宿主进程的系统文件权限和 Runtime 的引用解析规则决定。所有本地工具都不接受 Base64、Bearer Token 或单独的任意上传 URL。`direct_upload` 必须作为远程工具响应整体传递：`upload_required` 为 `false` 时包含 `asset_id`；需上传时还包含 `upload_url`、`headers` 和 `expires_at`。
 
