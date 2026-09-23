@@ -36,7 +36,7 @@ description: 使用 Quick Image 对当前会话附件或宿主可访问的本地
 
 只在进入对应阶段时读取 reference，避免把全部能力规则常驻在上下文中：
 
-1. 开始时先按宿主工具发现能力查找 Quick Image 远程工具和本地工具。除 OpenClaw 使用原生工具外，Codex、WorkBuddy 等宿主复用同一套通用 MCP 工具。远程工具包括 `get_agent_plugin_installation_plan`、`get_generation_config`、`create_direct_upload`、`submit_lookbook_task`、`submit_pose_task`、`submit_upscale_task`、`submit_video_task`、`list_generation_tasks` 和 `get_generation_tasks`；通用本地 MCP 工具包括 `inspect_attachment`、`prepare_attachment`、`estimate_lookbook_credits`、`estimate_pose_credits`、`estimate_upscale_credits`、`estimate_video_credits`、`upload_staged_attachment` 和 `download_preview_media`；OpenClaw 原生工具包括 `quick_image_list_attachments`、`quick_image_inspect_attachment`、`quick_image_prepare_attachment`、`quick_image_estimate_lookbook_credits`、`quick_image_estimate_pose_credits`、`quick_image_estimate_upscale_credits`、`quick_image_estimate_video_credits`、`quick_image_upload_staged_attachment` 和 `quick_image_send_preview`。
+1. 开始时先按宿主工具发现能力查找 Quick Image 远程工具和本地工具。远程工具包括 `get_agent_plugin_installation_plan`、`get_generation_config`、`create_direct_upload`、`submit_lookbook_task`、`submit_pose_task`、`submit_upscale_task`、`submit_video_task`、`list_generation_tasks` 和 `get_generation_tasks`。本地工具由 `quick-image-local` 本地 MCP 提供：`inspect_attachment`、`prepare_attachment`、`upload_staged_attachment`、`download_preview_media`、`estimate_lookbook_credits`、`estimate_pose_credits`、`estimate_upscale_credits` 和 `estimate_video_credits`。OpenClaw 另有两个专属原生工具：`quick_image_list_attachments`（列出当前会话附件）和 `quick_image_send_preview`（向当前会话发送结果预览）。
 2. 发现工具后调用 `get_generation_config`。确定能力、模型、参数、模板、附件角色和动态限制前，读取 [parameters.md](references/parameters.md)。不要使用记忆中的旧配置或固定限制。
 3. 任务需要附件时，读取 [attachments.md](references/attachments.md)，根据用户意图从会话附件中选择媒体，或由宿主或 AI 确定本地媒体绝对路径或媒体引用，再检查附件并保留一次性 `attachment_handle`。检查阶段不得准备、上传或创建直传信息。
 4. 需要报价、等待用户确认、确认后上传或提交任务时，读取 [submission.md](references/submission.md)。只调用与当前能力对应的估价和提交工具；本地预估完成并取得用户确认后才执行上传，余额不足时立即停止。
@@ -46,7 +46,7 @@ description: 使用 Quick Image 对当前会话附件或宿主可访问的本地
 
 ## 宿主边界
 
-- 本 Skill 面向所有支持 MCP 的 Agent 宿主。除 OpenClaw 需要原生适配工具外，Codex、WorkBuddy 等宿主复用同一套 Quick Image 远程 MCP 与本地 MCP 工具；各阶段规则对这些宿主一致，不因宿主不同而放宽或跳过。
+- 本 Skill 面向所有支持 MCP 的 Agent 宿主。OpenClaw 额外提供 `quick_image_list_attachments` 与 `quick_image_send_preview` 两个专属原生工具；各阶段规则对所有宿主一致，不因宿主不同而放宽或跳过。
 - OpenClaw 只执行 owner 发出的 Quick Image 指令。明确为非 owner 或无法确认时，不调用任何 Quick Image 本地或远程工具，只说明该能力仅供 owner 使用；这是 Skill 行为约束，不是原生运行时安全边界。
 - OpenClaw 找不到 `quick_image_list_attachments` 时，先读取 [attachments.md](references/attachments.md) 中的宿主故障处理，不得声称附件尚未生成、要求用户反复重发附件或开放通用 `message` 权限。
 - 不扫描插件或工作区源码，不检查端口，也不寻找替代上传入口。

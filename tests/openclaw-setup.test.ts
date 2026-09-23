@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CommandExecutor } from "../src/environment/command-executor.js";
 import { setupOpenClaw } from "../src/environment/openclaw-setup.js";
+import pluginPackage from "../package.json" with { type: "json" };
+
+const runtimeSpec = `quick-image-agent-runtime@${pluginPackage.dependencies["quick-image-agent-runtime"]}`;
 
 describe("OpenClaw setup", () => {
-  it("merges tool access, sets production MCP, and prompts for manual login", async () => {
+  it("merges tool access, sets both MCP servers, and prompts for manual login", async () => {
     const calls: string[][] = [];
     const executor = fixtureExecutor(calls, { profile: "coding", alsoAllow: ["existing-tool"] });
 
@@ -14,12 +17,17 @@ describe("OpenClaw setup", () => {
     });
 
     expect(calls).toContainEqual([
-      "config", "set", "tools.alsoAllow", '["existing-tool","quick-image"]', "--strict-json"
+      "config", "set", "tools.alsoAllow", '["existing-tool","quick-image","quick-image-local"]', "--strict-json"
     ]);
-    const mcpSet = calls.find((args) => args[0] === "mcp" && args[1] === "set");
-    expect(JSON.parse(mcpSet?.[3] ?? "null")).toMatchObject({
+    const remoteSet = calls.find((args) => args[0] === "mcp" && args[1] === "set" && args[2] === "quick-image");
+    expect(JSON.parse(remoteSet?.[3] ?? "null")).toMatchObject({
       url: "https://quickimage.ai/mcp",
       headers: { "X-Quick-Image-Plugin-Version": "0.1.0" }
+    });
+    const localSet = calls.find((args) => args[0] === "mcp" && args[1] === "set" && args[2] === "quick-image-local");
+    expect(JSON.parse(localSet?.[3] ?? "null")).toEqual({
+      command: "npx",
+      args: ["--yes", "--package", runtimeSpec, "quick-image-local-mcp"]
     });
     expect(calls).not.toContainEqual(["mcp", "login", "quick-image"]);
     expect(calls).not.toContainEqual(["gateway", "restart"]);
@@ -28,9 +36,9 @@ describe("OpenClaw setup", () => {
     expect(result).toEqual({ toolAccessChanged: true });
   });
 
-  it("always overwrites the MCP with the production config", async () => {
+  it("always overwrites both MCP entries with the production config", async () => {
     const calls: string[][] = [];
-    const executor = fixtureExecutor(calls, { alsoAllow: ["quick-image"] });
+    const executor = fixtureExecutor(calls, { alsoAllow: ["quick-image", "quick-image-local"] });
 
     const result = await setupOpenClaw({
       pluginVersion: "0.2.0",
@@ -39,8 +47,10 @@ describe("OpenClaw setup", () => {
     });
 
     expect(calls.some((args) => args[0] === "config" && args[1] === "set")).toBe(false);
-    const mcpSet = calls.find((args) => args[0] === "mcp" && args[1] === "set");
-    expect(JSON.parse(mcpSet?.[3] ?? "null")).toMatchObject({ url: "https://quickimage.ai/mcp" });
+    const remoteSet = calls.find((args) => args[0] === "mcp" && args[1] === "set" && args[2] === "quick-image");
+    expect(JSON.parse(remoteSet?.[3] ?? "null")).toMatchObject({ url: "https://quickimage.ai/mcp" });
+    const localSet = calls.find((args) => args[0] === "mcp" && args[1] === "set" && args[2] === "quick-image-local");
+    expect(JSON.parse(localSet?.[3] ?? "null")).toMatchObject({ command: "npx" });
     expect(calls.some((args) => args[0] === "config" && args[1] === "get" && args[2] === "mcp.servers")).toBe(false);
     expect(result).toEqual({ toolAccessChanged: false });
   });

@@ -40,9 +40,12 @@ describe("WorkBuddy plugin contract", () => {
   it("shares the host-agnostic skill wording across hosts", async () => {
     const skill = await readFile(path.resolve("skills/quick-image/SKILL.md"), "utf8");
 
-    expect(skill).toContain("Codex、WorkBuddy 等");
+    expect(skill).toContain("`quick-image-local` 本地 MCP");
+    expect(skill).toContain("quick_image_list_attachments");
+    expect(skill).toContain("quick_image_send_preview");
     expect(skill).not.toContain("Codex 本地工具");
-    expect(skill).toContain("OpenClaw 原生工具");
+    expect(skill).not.toContain("或 `quick_image_");
+    expect(skill).not.toContain("quick_image_inspect_attachment");
   });
 });
 

@@ -41,13 +41,6 @@ if (openClawManifest.mcpServers !== undefined) {
 }
 if (openClawManifest.contracts?.tools?.join(",") !== [
   "quick_image_list_attachments",
-  "quick_image_inspect_attachment",
-  "quick_image_prepare_attachment",
-  "quick_image_estimate_lookbook_credits",
-  "quick_image_estimate_pose_credits",
-  "quick_image_estimate_upscale_credits",
-  "quick_image_estimate_video_credits",
-  "quick_image_upload_staged_attachment",
   "quick_image_send_preview"
 ].join(",")) {
   errors.push("OpenClaw manifest: unexpected native tool contract");
@@ -175,16 +168,26 @@ for (const forbiddenTool of [
 }
 for (const requiredTool of [
   "inspect_attachment",
-  "quick_image_inspect_attachment",
-  "quick_image_prepare_attachment",
-  "quick_image_upload_staged_attachment",
   "prepare_attachment",
+  "upload_staged_attachment",
+  "download_preview_media",
+  "quick_image_list_attachments",
+  "quick_image_send_preview",
   "submit_lookbook_task",
   "submit_pose_task",
   "submit_upscale_task",
   "submit_video_task"
 ]) {
   if (!skill.includes(requiredTool)) errors.push(`skill is missing capability-specific tool: ${requiredTool}`);
+}
+// OpenClaw 原生工具已收敛到 quick-image-local 通用 MCP，SKILL 不得再出现逐工具双名枚举。
+for (const removedNativeTool of [
+  "quick_image_inspect_attachment",
+  "quick_image_prepare_attachment",
+  "quick_image_upload_staged_attachment",
+  "quick_image_estimate_"
+]) {
+  if (skill.includes(removedNativeTool)) errors.push(`skill exposes removed native tool: ${removedNativeTool}`);
 }
 for (const requiredRule of ["工具发现", "宿主原生", "绝对路径", "立即停止"]) {
   if (!skill.includes(requiredRule)) errors.push(`skill is missing fail-closed rule: ${requiredRule}`);

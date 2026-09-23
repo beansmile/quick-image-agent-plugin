@@ -49,7 +49,7 @@ codex mcp get quick-image
 
 ### WorkBuddy
 
-WorkBuddy 的状态检查命令待补充（占位）。补充前按与 Codex 相同的思路分类：先确认插件已安装并启用；宿主没有明确 DNS、超时或其他网络故障时归类为待授权，进入第 2 节；宿主明确报告网络故障时按连接故障处理，不执行登录。
+WorkBuddy 没有可供 Agent 执行的状态检查命令，Agent 无法从宿主读取 MCP 登记或授权状态。按与 Codex 相同的思路分类：先请用户确认「专家·技能·连接器」中 quick-image 套件已安装，且「连接器 → 自定义连接器」的「MCP 服务管理」列表中 quick-image 显示已连接；宿主没有明确 DNS、超时或其他网络故障时归类为待授权，进入第 2 节；宿主明确报告网络故障时按连接故障处理，不执行登录。
 
 ### 其他通用 MCP 宿主
 
@@ -65,7 +65,9 @@ WorkBuddy 的状态检查命令待补充（占位）。补充前按与 Codex 相
 
 用户明确确认前，不得执行任何登录命令。用户拒绝时停止当前 Quick Image 请求；用户确认后，按当前宿主的登录流程继续。
 
-## 3. Codex 登录流程
+## 3. Codex、WorkBuddy 登录流程
+
+### Codex
 
 经用户确认或用户主动要求登录后，通过宿主 `exec` 执行固定命令：
 
@@ -77,7 +79,18 @@ codex mcp login quick-image
 
 如果命令提示找不到 `quick-image` MCP，停止 OAuth，先让用户重新安装或启用 Quick Image Plugin。
 
-WorkBuddy 的登录命令待补充（占位）。补充前，WorkBuddy 中的 Quick Image 授权按宿主自身的 MCP OAuth 机制完成；除触发方式不同外，用户确认时机与凭据安全约束与 Codex 流程一致。其他通用 MCP 宿主同样使用宿主自身的 MCP 授权机制，不要索要或展示 Token、授权码或终端中的凭据。
+### WorkBuddy
+
+WorkBuddy 的授权在客户端界面完成，没有可供 Agent 执行的登录命令。用户确认后，引导用户完成以下操作，不要代为执行：
+
+1. 在 WorkBuddy 客户端切换到「连接器」标签页，点击「自定义连接器」。
+2. 在弹出的「MCP 服务管理」列表中找到「quick-image」，点击「连接」。
+3. 在打开的浏览器页面中登录 Quick Image 并批准授权，回到 WorkBuddy 确认连接器状态正常。
+4. 完全退出并重新启动 WorkBuddy 客户端，使新的授权和连接生效。
+
+凭据安全约束与 Codex 流程一致：不要索要或展示 Token、授权码或终端中的凭据。
+
+其他通用 MCP 宿主同样使用宿主自身的 MCP 授权机制，不要索要或展示 Token、授权码或终端中的凭据。
 
 ## 4. OpenClaw 登录流程
 
