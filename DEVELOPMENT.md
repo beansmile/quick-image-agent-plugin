@@ -95,9 +95,29 @@ codex mcp login quick-image
 
 Codex CLI 当前没有 `mcp doctor` 或 `mcp probe` 子命令。连接失败时可执行 `codex mcp get quick-image` 确认 MCP 已登记，但该命令不验证 OAuth 凭据；未登记时先重新安装或启用 Plugin，已登记且宿主没有明确网络错误时，仍以宿主 OAuth 错误或授权流程判断是否需要登录。
 
-## WorkBuddy 本地调试（占位）
+## WorkBuddy 本地调试
 
-WorkBuddy 的本地调试与测试环境设置方式待补充（占位）。WorkBuddy 与 Codex 复用同一套插件能力，仓库同时携带两份 WorkBuddy manifest：`.codebuddy-plugin/plugin.json` 通过 `./mcp.json` 声明同一套 Quick Image MCP（远程 `quick-image` 和本地 `quick-image-local`），未声明 `skills` 字段；`.workbuddy-plugin/plugin.json` 与 Codex manifest 同形（`skills: ./skills/`、`mcpServers: ./.mcp.json`）。WorkBuddy 实际读取哪一份以及 Skill 的发现与加载方式待补充。本地调试目标与 Codex 一致——构建源码后，让 WorkBuddy 实际加载本地构建产物，并将远程 MCP 指向本地 Server 和 Frontend。具体的安装/刷新命令、插件目录、隔离 Overlay 与配置写入方式确定后在此补充；在此之前不要为 WorkBuddy 编写修改宿主配置的安装脚本。
+WorkBuddy 桌面端没有公开 CLI：插件在客户端内经「专家·技能·连接器 → 技能 → 套件」市场手动安装，远程授权在「连接器 → 自定义连接器」界面完成。已安装插件由 `~/.workbuddy/plugins/installed_plugins.json` 注册表登记（权威来源，可用 `WORKBUDDY_HOME` 覆盖 home 目录），插件目录取注册表条目的 `installPath`；带 `.orphaned_at` 标记的孤儿目录不会出现在注册表中，因此不会被误改。
+
+插件包同时携带两份 WorkBuddy manifest：`.workbuddy-plugin/plugin.json` 与 Codex manifest 同形（`skills: ./skills/`、`mcpServers: ./.mcp.json`），是当前实际生效的一份，Skill 经其 `skills` 字段发现加载；`.codebuddy-plugin/plugin.json` 通过 `./mcp.json` 声明同一套 MCP 且未声明 `skills` 字段，仅作为旧命名布局的兼容候选保留。Runtime 的环境切换按 `.workbuddy-plugin/plugin.json` → `.codebuddy-plugin/plugin.json` 顺序探测，读取 manifest `mcpServers` 字段指向的清单文件，并要求该路径落在插件目录内。
+
+没有 Codex 那样的隔离 Overlay 安装脚本，也不写入宿主自身配置。本地调试流程：
+
+1. 在 WorkBuddy 客户端中按正式流程安装 quick-image 套件，让宿主加载 Skill 与 MCP 配置。
+2. 用 Runtime CLI 把已安装插件的 MCP 清单改写到本地地址（端口与 Codex 本地调试一致）：
+
+   ```bash
+   npx --yes --prefer-online \
+     --package quick-image-agent-runtime@latest \
+     quick-image env set \
+     --host workbuddy \
+     --server-url http://127.0.0.1:3000/mcp \
+     --frontend-url http://127.0.0.1:8001
+   ```
+
+3. 完全退出并重新启动 WorkBuddy 客户端，使新配置和新的 Skill 生效；之后每次更新本地构建产物，重新安装套件或重跑同一命令，再重启客户端。
+
+`env set --host workbuddy` 只更新插件安装目录内 MCP 清单中 `mcpServers.quick-image` 的 `url` 与 `X-Quick-Image-Frontend-URL` 头，其余配置语义不变，并按原文还原 BOM、缩进、行尾与结尾换行；写入前在同目录生成 `.quick-image-backup` 备份，写入后回读校验除目标 URL 和 header 外的内容未被改动，失败自动回滚原文；存在多个安装（不同 scope）时先全部解析规划再统一写入，任何一处失败都不会留下混合环境。符号链接形式的清单会被拒绝修改。调试结束执行 `quick-image env reset --host workbuddy` 恢复正式配置，并重启客户端。
 
 ## OpenClaw 本地调试
 
