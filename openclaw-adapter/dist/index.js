@@ -2,10 +2,8 @@
 import path4 from "path";
 import { randomBytes as randomBytes2 } from "crypto";
 import {
-  assertSupportedRuntime,
-  AttachmentPipeline,
   HANDLE_CLEANUP_INTERVAL_MS,
-  PluginError as PluginError3,
+  PluginError as PluginError2,
   PreviewDownloadService,
   resolveOpenClawAttachmentRegistryDirectory
 } from "quick-image-agent-runtime";
@@ -274,280 +272,6 @@ async function ensurePrivateDirectory(directory) {
   if ((details.mode & 63) !== 0) await chmod(directory, 448);
 }
 
-// src/openclaw-adapter/local-tools.ts
-import { z } from "zod";
-import * as z4 from "zod/v4";
-import {
-  directUploadSchema,
-  estimateGenerationCredits,
-  lookbookEstimateInputSchema,
-  PluginError as PluginError2,
-  poseEstimateInputSchema,
-  toPluginError,
-  upscaleEstimateInputSchema,
-  videoEstimateInputSchema
-} from "quick-image-agent-runtime";
-var OPENCLAW_LOCAL_TOOL_NAMES = [
-  "quick_image_inspect_attachment",
-  "quick_image_prepare_attachment",
-  "quick_image_estimate_lookbook_credits",
-  "quick_image_estimate_pose_credits",
-  "quick_image_estimate_upscale_credits",
-  "quick_image_estimate_video_credits",
-  "quick_image_upload_staged_attachment"
-];
-var inspectInputSchema = z.object({
-  attachment_id: z.string().regex(/^qio_[A-Za-z0-9_-]{43}$/).optional(),
-  path: z.string().min(1).optional()
-}).strict().refine(
-  ({ attachment_id, path: path5 }) => Boolean(attachment_id) !== Boolean(path5),
-  "attachment_id \u548C path \u5FC5\u987B\u4E8C\u9009\u4E00"
-);
-var prepareInputSchema = z.object({
-  attachment_handle: z.string().regex(/^qia_[A-Za-z0-9_-]{43}$/)
-}).strict();
-var uploadInputSchema = z.object({
-  staged_handle: z.string().regex(/^qis_[A-Za-z0-9_-]{43}$/),
-  direct_upload: directUploadSchema
-}).strict();
-var readOnlyAnnotations = {
-  readOnlyHint: true,
-  destructiveHint: false,
-  idempotentHint: false,
-  openWorldHint: false
-};
-function createOpenClawLocalTools(registry, pipelineProvider, context) {
-  return [
-    createInspectTool(registry, pipelineProvider, context),
-    createPrepareTool(pipelineProvider, context),
-    createLookbookEstimateTool(),
-    createPoseEstimateTool(),
-    createUpscaleEstimateTool(),
-    createVideoEstimateTool(),
-    createUploadTool(pipelineProvider, context)
-  ];
-}
-function createInspectTool(registry, pipelineProvider, context) {
-  return {
-    name: "quick_image_inspect_attachment",
-    label: "\u68C0\u67E5 Quick Image \u9644\u4EF6",
-    description: "\u68C0\u67E5\u5F53\u524D OpenClaw \u4F1A\u8BDD\u9644\u4EF6\uFF0C\u6216\u68C0\u67E5\u5BBF\u4E3B\u6216 AI \u6839\u636E\u7528\u6237\u610F\u56FE\u63D0\u4F9B\u7684\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\u6216\u5A92\u4F53\u5F15\u7528\uFF1B\u4EC5\u8BFB\u53D6\u57FA\u7840\u6587\u4EF6\u4FE1\u606F\u548C\u5B8C\u6210\u9650\u5236\u6821\u9A8C\u6240\u9700\u7684\u6280\u672F\u5143\u6570\u636E\uFF0C\u4E0D\u5206\u6790\u56FE\u7247\u3001\u97F3\u9891\u6216\u89C6\u9891\u5185\u5BB9\u3002\u8FD4\u56DE\u4E0D\u5305\u542B\u672C\u5730\u8DEF\u5F84\u6216\u9644\u4EF6\u5B57\u8282\u7684\u4E00\u6B21\u6027\u53E5\u67C4\u3002\u6B64\u6B65\u9AA4\u4E0D\u5904\u7406\u3001\u4E0D\u6682\u5B58\u3001\u4E0D\u4E0A\u4F20\u9644\u4EF6\u3002",
-    parameters: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        attachment_id: {
-          type: "string",
-          pattern: "^qio_[A-Za-z0-9_-]{43}$",
-          description: "quick_image_list_attachments \u8FD4\u56DE\u7684\u5F53\u524D\u4F1A\u8BDD\u9644\u4EF6 ID\uFF1B\u4E0E path \u4E8C\u9009\u4E00\u3002"
-        },
-        path: {
-          type: "string",
-          minLength: 1,
-          description: "\u5BBF\u4E3B\u6216 AI \u6839\u636E\u7528\u6237\u610F\u56FE\u63D0\u4F9B\u7684\u672C\u5730\u6587\u4EF6\u7EDD\u5BF9\u8DEF\u5F84\u6216 Runtime \u652F\u6301\u7684\u5A92\u4F53\u5F15\u7528\uFF1B\u4E0E attachment_id \u4E8C\u9009\u4E00\u3002"
-        }
-      },
-      oneOf: [
-        { required: ["attachment_id"] },
-        { required: ["path"] }
-      ]
-    },
-    annotations: readOnlyAnnotations,
-    async execute(_toolCallId, rawParameters) {
-      return executeLocalTool(async () => {
-        const parameters = inspectInputSchema.parse(rawParameters);
-        const sessionKey = requireSessionKey(context);
-        const sourceReference = parameters.path ?? (await registry.resolveForSession(parameters.attachment_id, sessionKey)).source_reference;
-        return (await pipelineProvider()).inspect(sourceReference, sessionKey);
-      });
-    }
-  };
-}
-function createPrepareTool(pipelineProvider, context) {
-  return {
-    name: "quick_image_prepare_attachment",
-    label: "\u51C6\u5907 Quick Image \u9644\u4EF6",
-    description: "\u7528\u6237\u786E\u8BA4\u62A5\u4EF7\u540E\u91CD\u65B0\u6821\u9A8C\u5F53\u524D\u4F1A\u8BDD\u9644\u4EF6\u5E76\u5904\u7406\u5A92\u4F53\uFF0C\u8FD4\u56DE\u4E00\u6B21\u6027\u6682\u5B58\u53E5\u67C4\u548C\u53EF\u539F\u6837\u4F20\u7ED9 create_direct_upload \u7684\u53C2\u6570\u3002",
-    parameters: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        attachment_handle: {
-          type: "string",
-          pattern: "^qia_[A-Za-z0-9_-]{43}$",
-          description: "quick_image_inspect_attachment \u8FD4\u56DE\u7684\u4E00\u6B21\u6027\u68C0\u67E5\u53E5\u67C4\u3002"
-        }
-      },
-      required: ["attachment_handle"]
-    },
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-      idempotentHint: false,
-      openWorldHint: false
-    },
-    async execute(_toolCallId, rawParameters) {
-      return executeLocalTool(async () => {
-        const parameters = prepareInputSchema.parse(rawParameters);
-        const sessionKey = requireSessionKey(context);
-        return (await pipelineProvider()).prepare(parameters.attachment_handle, sessionKey);
-      });
-    }
-  };
-}
-function createUploadTool(pipelineProvider, context) {
-  return {
-    name: "quick_image_upload_staged_attachment",
-    label: "\u4E0A\u4F20 Quick Image \u6682\u5B58\u9644\u4EF6",
-    description: "\u4F7F\u7528\u8FDC\u7A0B Quick Image MCP \u8FD4\u56DE\u7684\u5B8C\u6574\u4FE1\u606F\u4E0A\u4F20\u6682\u5B58\u6587\u4EF6\uFF0C\u6216\u590D\u7528\u5DF2\u9A8C\u8BC1\u7D20\u6750\uFF1B\u6210\u529F\u540E\u6D88\u8D39\u53E5\u67C4\u3002",
-    parameters: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        staged_handle: {
-          type: "string",
-          pattern: "^qis_[A-Za-z0-9_-]{43}$"
-        },
-        direct_upload: {
-          oneOf: [
-            {
-              type: "object",
-              additionalProperties: false,
-              properties: {
-                asset_id: { type: "string", minLength: 1, maxLength: 200 },
-                upload_required: { const: false }
-              },
-              required: ["asset_id", "upload_required"]
-            },
-            {
-              type: "object",
-              additionalProperties: false,
-              properties: {
-                asset_id: { type: "string", minLength: 1, maxLength: 200 },
-                upload_required: { const: true },
-                upload_url: { type: "string", format: "uri", maxLength: 8192 },
-                headers: { type: "object", additionalProperties: { type: "string" } },
-                expires_at: { type: "string", format: "date-time" }
-              },
-              required: ["asset_id", "upload_url", "headers", "expires_at"]
-            }
-          ]
-        }
-      },
-      required: ["staged_handle", "direct_upload"]
-    },
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-      idempotentHint: false,
-      openWorldHint: true
-    },
-    async execute(_toolCallId, rawParameters) {
-      return executeLocalTool(async () => {
-        const parameters = uploadInputSchema.parse(rawParameters);
-        const sessionKey = requireSessionKey(context);
-        return (await pipelineProvider()).upload(parameters.staged_handle, parameters.direct_upload, sessionKey);
-      });
-    }
-  };
-}
-function createLookbookEstimateTool() {
-  return estimateTool(
-    "quick_image_estimate_lookbook_credits",
-    "\u9884\u4F30 Quick Image \u642D\u914D\u79EF\u5206",
-    "\u4F7F\u7528\u642D\u914D\u6A21\u578B\u4EF7\u683C\u3001\u53EF\u9009\u6A21\u677F\u4EF7\u683C\u548C\u8F93\u51FA\u6570\u91CF\u786E\u5B9A\u6027\u8BA1\u7B97\u9884\u8BA1\u79EF\u5206\u4E0E\u989D\u5916\u786E\u8BA4\u539F\u56E0\u3002",
-    lookbookEstimateInputSchema,
-    (parameters) => estimateGenerationCredits({
-      ...parameters,
-      measurements: { output_count: parameters.output_count }
-    })
-  );
-}
-function createPoseEstimateTool() {
-  return estimateTool(
-    "quick_image_estimate_pose_credits",
-    "\u9884\u4F30 Quick Image \u6362\u59FF\u79EF\u5206",
-    "\u4F7F\u7528\u6362\u59FF\u6A21\u578B\u4EF7\u683C\u3001\u53EF\u9009\u6A21\u677F\u4EF7\u683C\u3001\u4EBA\u7269\u6570\u548C\u5355\u4EBA\u8F93\u51FA\u6570\u786E\u5B9A\u6027\u8BA1\u7B97\u9884\u8BA1\u79EF\u5206\u4E0E\u989D\u5916\u786E\u8BA4\u539F\u56E0\u3002",
-    poseEstimateInputSchema,
-    (parameters) => estimateGenerationCredits({
-      ...parameters,
-      measurements: {
-        person_count: parameters.person_count,
-        output_count_per_person: parameters.output_count_per_person
-      }
-    })
-  );
-}
-function createUpscaleEstimateTool() {
-  return estimateTool(
-    "quick_image_estimate_upscale_credits",
-    "\u9884\u4F30 Quick Image \u9AD8\u6E05\u79EF\u5206",
-    "\u4F7F\u7528\u9AD8\u6E05\u4EF7\u683C\u548C\u8F93\u5165\u56FE\u7247\u6570\u91CF\u786E\u5B9A\u6027\u8BA1\u7B97\u9884\u8BA1\u79EF\u5206\u4E0E\u989D\u5916\u786E\u8BA4\u539F\u56E0\u3002",
-    upscaleEstimateInputSchema,
-    (parameters) => estimateGenerationCredits({
-      ...parameters,
-      measurements: { input_count: parameters.input_count }
-    })
-  );
-}
-function createVideoEstimateTool() {
-  return estimateTool(
-    "quick_image_estimate_video_credits",
-    "\u9884\u4F30 Quick Image \u89C6\u9891\u79EF\u5206",
-    "\u4F7F\u7528\u89C6\u9891\u4EF7\u683C\u3001\u8F93\u51FA\u65F6\u957F\u548C\u53EF\u9009\u8F93\u5165\u89C6\u9891\u65F6\u957F\u786E\u5B9A\u6027\u8BA1\u7B97\u9884\u8BA1\u79EF\u5206\u4E0E\u989D\u5916\u786E\u8BA4\u539F\u56E0\u3002",
-    videoEstimateInputSchema,
-    (parameters) => estimateGenerationCredits({
-      ...parameters,
-      measurements: {
-        output_duration_seconds: parameters.output_duration_seconds,
-        ...parameters.input_video_duration_seconds === null ? {} : { input_video_duration_seconds: parameters.input_video_duration_seconds }
-      }
-    })
-  );
-}
-function estimateTool(name, label, description, schema, estimate) {
-  return {
-    name,
-    label,
-    description,
-    parameters: toOpenClawParameters(schema),
-    annotations: {
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false
-    },
-    async execute(_toolCallId, rawParameters) {
-      return executeLocalTool(() => estimate(schema.parse(rawParameters)));
-    }
-  };
-}
-function toOpenClawParameters(schema) {
-  const jsonSchema = z4.toJSONSchema(schema);
-  const { $schema: _schema, ...parameters } = jsonSchema;
-  return parameters;
-}
-function requireSessionKey(context) {
-  if (!context.sessionKey) {
-    throw new PluginError2("OPENCLAW_SESSION_UNAVAILABLE", "\u5F53\u524D OpenClaw \u4F1A\u8BDD\u6CA1\u6709\u53EF\u7528\u7684\u9644\u4EF6\u4E0A\u4E0B\u6587\u3002", {
-      suggested_action: "\u8BF7\u5728\u539F\u9644\u4EF6\u6240\u5728\u4F1A\u8BDD\u4E2D\u91CD\u8BD5\u3002"
-    });
-  }
-  return context.sessionKey;
-}
-async function executeLocalTool(action) {
-  try {
-    const value = await action();
-    return { content: [{ type: "text", text: JSON.stringify(value) }] };
-  } catch (error) {
-    const publicError = toPluginError(error).toPublicObject();
-    return {
-      content: [{ type: "text", text: JSON.stringify(publicError) }],
-      isError: true
-    };
-  }
-}
-
 // src/openclaw-adapter/environment-cli.ts
 import path3 from "path";
 import { spawnSync as spawnSync2 } from "child_process";
@@ -571,12 +295,15 @@ var systemCommandExecutor = {
 };
 
 // src/environment/config.ts
+import { createRequire } from "module";
 var QUICK_IMAGE_MCP_NAME = "quick-image";
+var QUICK_IMAGE_LOCAL_MCP_NAME = "quick-image-local";
 var QUICK_IMAGE_PRODUCTION_SERVER_URL = "https://quickimage.ai/mcp";
 var QUICK_IMAGE_PRODUCTION_FRONTEND_URL = "https://quickimage.ai";
 var QUICK_IMAGE_FRONTEND_HEADER = "X-Quick-Image-Frontend-URL";
 var QUICK_IMAGE_VERSION_HEADER = "X-Quick-Image-Plugin-Version";
 var QUICK_IMAGE_OAUTH_SCOPE = "presets:read assets:write tasks:read tasks:write";
+var RUNTIME_PACKAGE_NAME = "quick-image-agent-runtime";
 function productionEnvironmentUrls() {
   return {
     serverUrl: QUICK_IMAGE_PRODUCTION_SERVER_URL,
@@ -593,6 +320,18 @@ function buildOpenClawMcpConfig(urls, pluginVersion) {
       [QUICK_IMAGE_VERSION_HEADER]: pluginVersion,
       [QUICK_IMAGE_FRONTEND_HEADER]: urls.frontendUrl
     }
+  };
+}
+function runtimePackageSpec() {
+  const pluginPackage = createRequire(import.meta.url)("../../package.json");
+  const version = pluginPackage.dependencies[RUNTIME_PACKAGE_NAME];
+  if (!version) throw new Error(`package.json \u7F3A\u5C11 ${RUNTIME_PACKAGE_NAME} \u4F9D\u8D56`);
+  return `${RUNTIME_PACKAGE_NAME}@${version}`;
+}
+function buildOpenClawLocalMcpConfig() {
+  return {
+    command: "npx",
+    args: ["--yes", "--package", runtimePackageSpec(), "quick-image-local-mcp"]
   };
 }
 
@@ -641,15 +380,16 @@ async function setupOpenClaw(options) {
     executor,
     pluginVersion: options.pluginVersion
   });
+  configureLocalMcp({ openClawBin, executor });
   executor.run(openClawBin, ["mcp", "reload"]);
   return { toolAccessChanged };
 }
 function formatOpenClawSetupResult(result) {
-  const toolAccess = result.toolAccessChanged ? "\u5DF2\u5C06 quick-image \u52A0\u5165 tools.alsoAllow\uFF0C\u5E76\u4FDD\u7559\u539F\u6709\u6761\u76EE\u3002" : "tools.alsoAllow \u5DF2\u5305\u542B quick-image\u3002";
+  const toolAccess = result.toolAccessChanged ? "\u5DF2\u5C06 quick-image \u4E0E quick-image-local \u52A0\u5165 tools.alsoAllow\uFF0C\u5E76\u4FDD\u7559\u539F\u6709\u6761\u76EE\u3002" : "tools.alsoAllow \u5DF2\u5305\u542B quick-image \u4E0E quick-image-local\u3002";
   return [
     "Quick Image OpenClaw \u914D\u7F6E\u5B8C\u6210\u3002",
     toolAccess,
-    "\u5DF2\u8BBE\u7F6E Quick Image \u6B63\u5F0F\u73AF\u5883 MCP\u3002",
+    "\u5DF2\u8BBE\u7F6E Quick Image \u6B63\u5F0F\u73AF\u5883\u8FDC\u7A0B MCP\uFF08quick-image\uFF09\u4E0E\u672C\u5730\u5904\u7406 MCP\uFF08quick-image-local\uFF09\u3002",
     "\u5DF2\u91CD\u65B0\u52A0\u8F7D MCP \u914D\u7F6E\u3002",
     "\u5982\u9700\u767B\u5F55 Quick Image MCP\uFF0C\u65E0\u9700\u7528\u6237\u624B\u52A8\u6267\u884C\u547D\u4EE4\uFF1AAgent \u76F4\u63A5\u8FD0\u884C\u4EE5\u4E0B\u547D\u4EE4\uFF0C\u4ECE\u8F93\u51FA\u4E2D\u63D0\u53D6\u6388\u6743\u94FE\u63A5\u53D1\u9001\u7ED9\u7528\u6237\uFF0C\u518D\u7B49\u5F85\u7528\u6237\u56DE\u4F20\u6388\u6743\u7801\uFF08\u4EC5\u7528\u6237\u624B\u52A8\u5B89\u88C5\u65F6\u624D\u7531\u7528\u6237\u5728\u672C\u673A\u7EC8\u7AEF\u6267\u884C\uFF09\uFF1A",
     LOGIN_COMMAND
@@ -658,7 +398,7 @@ function formatOpenClawSetupResult(result) {
 function ensureToolAccess(openClawBin, executor) {
   const tools = readOptionalConfigObject(openClawBin, executor, "tools") ?? {};
   const current = readStringArray(tools.alsoAllow, "tools.alsoAllow");
-  const merged = [.../* @__PURE__ */ new Set([...current, OPENCLAW_PLUGIN_ID])];
+  const merged = [.../* @__PURE__ */ new Set([...current, OPENCLAW_PLUGIN_ID, QUICK_IMAGE_LOCAL_MCP_NAME])];
   if (arraysEqual(current, merged)) return false;
   executor.run(openClawBin, [
     "config",
@@ -675,6 +415,15 @@ function configureProductionMcp(options) {
     "mcp",
     "set",
     QUICK_IMAGE_MCP_NAME,
+    JSON.stringify(config)
+  ]);
+}
+function configureLocalMcp(options) {
+  const config = buildOpenClawLocalMcpConfig();
+  options.executor.run(options.openClawBin, [
+    "mcp",
+    "set",
+    QUICK_IMAGE_LOCAL_MCP_NAME,
     JSON.stringify(config)
   ]);
 }
@@ -805,7 +554,7 @@ function createPreviewTool(api, context, previewDownloads) {
       try {
         return await executePreview(api, context, previewDownloads, rawParameters);
       } catch (error) {
-        if (error instanceof PluginError3) {
+        if (error instanceof PluginError2) {
           return {
             content: [{ type: "text", text: JSON.stringify(error.toPublicObject()) }],
             isError: true
@@ -844,7 +593,7 @@ async function executePreview(api, context, previewDownloads, rawParameters) {
       }
     });
   } catch (error) {
-    if (error instanceof PluginError3 && error.code === "PREVIEW_SEND_FAILED") throw error;
+    if (error instanceof PluginError2 && error.code === "PREVIEW_SEND_FAILED") throw error;
     throw previewFailure("PREVIEW_DOWNLOAD_FAILED", "\u9884\u89C8\u5A92\u4F53\u4E0B\u8F7D\u5931\u8D25", parameters.download_url, error);
   }
 }
@@ -879,8 +628,8 @@ async function sendPreviewMedia(parameters, route, adapter, cfg, mediaUrl, fileN
   };
 }
 function previewFailure(code, summary, downloadUrl, cause) {
-  const detail = cause instanceof PluginError3 ? `${cause.code}\uFF1A${cause.message}` : cause instanceof Error ? cause.message : String(cause);
-  return new PluginError3(code, `${summary}\uFF08${detail}\uFF09\u3002`, {
+  const detail = cause instanceof PluginError2 ? `${cause.code}\uFF1A${cause.message}` : cause instanceof Error ? cause.message : String(cause);
+  return new PluginError2(code, `${summary}\uFF08${detail}\uFF09\u3002`, {
     retryable: false,
     suggested_action: `\u4E0D\u8981\u91CD\u8BD5\u9884\u89C8\u53D1\u9001\uFF0C\u4E5F\u4E0D\u8981\u9000\u56DE Markdown \u56FE\u7247\uFF1B\u6539\u4E3A\u76F4\u63A5\u53D1\u9001\u539F\u56FE\u94FE\u63A5\u6587\u672C\uFF1A${downloadUrl}`
   });
@@ -889,7 +638,7 @@ function createListAttachmentsTool(registry, pendingRegistrations, context) {
   return {
     name: LIST_ATTACHMENTS_TOOL_NAME,
     label: "\u5217\u51FA Quick Image \u9644\u4EF6",
-    description: "\u5217\u51FA\u5F53\u524D OpenClaw \u4F1A\u8BDD\u6700\u8FD1\u7684\u9644\u4EF6\u5019\u9009\uFF0C\u9ED8\u8BA4\u8FD4\u56DE\u6700\u8FD1 10 \u4E2A\u5E76\u6309\u4E0A\u4F20\u65F6\u95F4\u4ECE\u65E7\u5230\u65B0\u6392\u5217\u3002",
+    description: "\u5217\u51FA\u5F53\u524D OpenClaw \u4F1A\u8BDD\u6700\u8FD1\u7684\u9644\u4EF6\u5019\u9009\uFF0C\u9ED8\u8BA4\u8FD4\u56DE\u6700\u8FD1 10 \u4E2A\u5E76\u6309\u4E0A\u4F20\u65F6\u95F4\u4ECE\u65E7\u5230\u65B0\u6392\u5217\u3002\u6BCF\u4E2A\u5019\u9009\u8FD4\u56DE source_reference\uFF08Runtime \u652F\u6301\u7684\u5A92\u4F53\u5F15\u7528\u6216\u672C\u5730\u7EDD\u5BF9\u8DEF\u5F84\uFF09\uFF0C\u5C06\u5176\u539F\u6837\u4F20\u7ED9 quick-image-local \u672C\u5730 MCP \u7684 inspect_attachment \u7684 path \u53C2\u6570\u5373\u53EF\u68C0\u67E5\u9644\u4EF6\u3002",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -927,6 +676,7 @@ function createListAttachmentsTool(registry, pendingRegistrations, context) {
           text: JSON.stringify({
             attachments: result.attachments.map((attachment) => ({
               attachment_id: attachment.attachment_id,
+              source_reference: attachment.source_reference,
               kind: attachment.kind,
               media_type: attachment.media_type ?? null,
               message_id: attachment.message_id ?? null,
@@ -1045,19 +795,11 @@ var plugin = {
     registerOpenClawCli(api);
     const stateDirectory = resolveOpenClawAttachmentRegistryDirectory();
     const registry = new OpenClawAttachmentRegistry(stateDirectory);
-    const previewDownloads = new PreviewDownloadService(path4.join(stateDirectory, "preview-cache"));
+    const previewDownloads = new PreviewDownloadService(path4.join(stateDirectory, "openclaw-preview-cache"));
     void previewDownloads.initialize().catch(() => {
       process.stderr.write(`${JSON.stringify({ code: "PREVIEW_CACHE_INIT_FAILED" })}
 `);
     });
-    let pipelinePromise;
-    const getPipeline = () => {
-      pipelinePromise ??= Promise.resolve().then(async () => {
-        assertSupportedRuntime();
-        return AttachmentPipeline.create(path4.join(stateDirectory, "openclaw-attachment-pipeline"));
-      });
-      return pipelinePromise;
-    };
     const pendingRegistrations = /* @__PURE__ */ new Map();
     api.on("message_received", (event, context) => {
       const sessionKey = event.sessionKey ?? context.sessionKey;
@@ -1076,17 +818,9 @@ var plugin = {
     api.registerTool((context) => createListAttachmentsTool(registry, pendingRegistrations, context), {
       name: LIST_ATTACHMENTS_TOOL_NAME
     });
-    for (const [index, toolName] of OPENCLAW_LOCAL_TOOL_NAMES.entries()) {
-      api.registerTool((context) => {
-        const tool = createOpenClawLocalTools(registry, getPipeline, context)[index];
-        if (!tool) throw new Error(`\u65E0\u6CD5\u6CE8\u518C Quick Image \u539F\u751F\u5DE5\u5177\uFF1A${toolName}`);
-        return tool;
-      }, { name: toolName });
-    }
     api.registerTool((context) => createPreviewTool(api, context, previewDownloads), { name: PREVIEW_TOOL_NAME });
     const cleanupTimer = setInterval(() => {
       const cleanupTasks = [registry.cleanupUnavailable()];
-      if (pipelinePromise) cleanupTasks.push(pipelinePromise.then((pipeline) => pipeline.cleanupExpired()));
       void Promise.all(cleanupTasks).catch(() => {
         process.stderr.write(`${JSON.stringify({ code: "ATTACHMENT_CLEANUP_FAILED" })}
 `);

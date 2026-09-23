@@ -1,15 +1,12 @@
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import {
-  assertSupportedRuntime,
-  AttachmentPipeline,
   HANDLE_CLEANUP_INTERVAL_MS,
   PluginError,
   PreviewDownloadService,
   resolveOpenClawAttachmentRegistryDirectory
 } from "quick-image-agent-runtime";
 import { OpenClawAttachmentRegistry, type OpenClawAttachmentKind } from "../openclaw/attachment-registry.js";
-import { createOpenClawLocalTools, OPENCLAW_LOCAL_TOOL_NAMES } from "./local-tools.js";
 import { registerOpenClawCli } from "./environment-cli.js";
 import type { OpenClawNativeTool, OpenClawToolContext } from "./types.js";
 
@@ -269,7 +266,7 @@ export function createListAttachmentsTool(
   return {
     name: LIST_ATTACHMENTS_TOOL_NAME,
     label: "列出 Quick Image 附件",
-    description: "列出当前 OpenClaw 会话最近的附件候选，默认返回最近 10 个并按上传时间从旧到新排列。",
+    description: "列出当前 OpenClaw 会话最近的附件候选，默认返回最近 10 个并按上传时间从旧到新排列。每个候选返回 source_reference（Runtime 支持的媒体引用或本地绝对路径），将其原样传给 quick-image-local 本地 MCP 的 inspect_attachment 的 path 参数即可检查附件。",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -307,6 +304,7 @@ export function createListAttachmentsTool(
           text: JSON.stringify({
             attachments: result.attachments.map((attachment) => ({
               attachment_id: attachment.attachment_id,
+              source_reference: attachment.source_reference,
               kind: attachment.kind,
               media_type: attachment.media_type ?? null,
               message_id: attachment.message_id ?? null,
@@ -443,18 +441,11 @@ const plugin = {
     const stateDirectory = resolveOpenClawAttachmentRegistryDirectory();
     const registry = new OpenClawAttachmentRegistry(stateDirectory);
     // 图片预览的本地缓存：目录私有化与启动清扫交给服务初始化；容量清理由服务在每次保存后自触发。
-    const previewDownloads = new PreviewDownloadService(path.join(stateDirectory, "preview-cache"));
+    // 使用独立子目录，避免与 quick-image-local MCP 进程的 download_preview_media 缓存互相清理。
+    const previewDownloads = new PreviewDownloadService(path.join(stateDirectory, "openclaw-preview-cache"));
     void previewDownloads.initialize().catch(() => {
       process.stderr.write(`${JSON.stringify({ code: "PREVIEW_CACHE_INIT_FAILED" })}\n`);
     });
-    let pipelinePromise: Promise<AttachmentPipeline> | undefined;
-    const getPipeline = () => {
-      pipelinePromise ??= Promise.resolve().then(async () => {
-        assertSupportedRuntime();
-        return AttachmentPipeline.create(path.join(stateDirectory, "openclaw-attachment-pipeline"));
-      });
-      return pipelinePromise;
-    };
     const pendingRegistrations = new Map<string, Promise<void>>();
     api.on("message_received", (event, context) => {
       const sessionKey = event.sessionKey ?? context.sessionKey;
@@ -473,19 +464,11 @@ const plugin = {
     api.registerTool((context) => createListAttachmentsTool(registry, pendingRegistrations, context), {
       name: LIST_ATTACHMENTS_TOOL_NAME
     });
-    for (const [index, toolName] of OPENCLAW_LOCAL_TOOL_NAMES.entries()) {
-      api.registerTool((context) => {
-        const tool = createOpenClawLocalTools(registry, getPipeline, context)[index];
-        if (!tool) throw new Error(`无法注册 Quick Image 原生工具：${toolName}`);
-        return tool;
-      }, { name: toolName });
-    }
     api.registerTool((context) => createPreviewTool(api, context, previewDownloads), { name: PREVIEW_TOOL_NAME });
 
     const cleanupTimer = setInterval(() => {
-      // 预览缓存没有 TTL 可清，只保留 registry/pipeline 的既有清理。
+      // 预览缓存没有 TTL 可清，只保留 registry 的既有清理；本地处理句柄由 quick-image-local MCP 进程管理。
       const cleanupTasks = [registry.cleanupUnavailable()];
-      if (pipelinePromise) cleanupTasks.push(pipelinePromise.then((pipeline) => pipeline.cleanupExpired()));
       void Promise.all(cleanupTasks).catch(() => {
         process.stderr.write(`${JSON.stringify({ code: "ATTACHMENT_CLEANUP_FAILED" })}\n`);
       });

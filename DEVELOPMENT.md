@@ -6,7 +6,7 @@
 
 ## 架构与能力边界
 
-Quick Image Agent Plugin 为 Codex、WorkBuddy、OpenClaw 等 Agent 宿主提供同一份生成 Skill 与远程 Quick Image MCP 连接。独立版本的 `quick-image-agent-runtime` 同时导出 stdio MCP 入口和核心 API：Codex、WorkBuddy 等通用 MCP 宿主启动 stdio MCP，OpenClaw 原生适配器直接导入核心 API。各宿主因此复用完全相同的附件处理、估价和上传实现；Runtime 版本与 Plugin 版本仍独立发布。
+Quick Image Agent Plugin 为 Codex、WorkBuddy、OpenClaw 等 Agent 宿主提供同一份生成 Skill 与远程 Quick Image MCP 连接。独立版本的 `quick-image-agent-runtime` 同时导出 stdio MCP 入口和核心 API：所有宿主（含 OpenClaw）统一经 `quick-image-local` stdio MCP 使用附件检查、估价和上传工具，复用完全相同的实现；OpenClaw 原生适配层只额外提供两个宿主耦合工具——`quick_image_list_attachments`（经 `message_received` 钩子登记的会话附件列表，返回可直接传给 `inspect_attachment` 的 `source_reference`）和 `quick_image_send_preview`（向当前会话可信路由投递结果预览）。Runtime 版本与 Plugin 版本仍独立发布。
 
 - 插件支持搭配出图、换姿、高清和视频生成。
 - 生成前通过远程 MCP 获取公开配置并在本地预估报价，用户确认后才上传。
@@ -121,12 +121,12 @@ WorkBuddy 桌面端没有公开 CLI：插件在客户端内经「专家·技能�
 
 ## OpenClaw 本地调试
 
-OpenClaw 只需安装根目录的 `quick-image` 原生插件。原生适配器直接调用 Plugin 固定版本的 `quick-image-agent-runtime` 核心 API，统一提供附件检查、处理、上传和确定性估价，并由 Plugin 自身提供 Skill 与可信结果发送；不需要再安装或登记 `quick-image-local` 本地 MCP。
+OpenClaw 安装根目录的 `quick-image` 原生插件，并由 `setup` 登记远程 MCP（`quick-image`）与本地处理 MCP（`quick-image-local`，stdio 方式经 npx 启动 Plugin 固定版本的 `quick-image-agent-runtime`）。附件检查、处理、上传和确定性估价统一走 `quick-image-local` 本地 MCP 工具；Plugin 原生层只保留会话附件列表（`quick_image_list_attachments`）与可信结果发送（`quick_image_send_preview`），并自带 Skill。
 
-限制型工具 profile 不会自动开放第三方原生工具。首次安装前需要按插件 ID 授权 Quick Image 的全部原生工具：
+限制型工具 profile 不会自动开放第三方工具。首次安装前需要按插件 ID 与本地 MCP 名授权 Quick Image 工具：
 
 ```bash
-openclaw config set tools.alsoAllow '["quick-image"]' --strict-json
+openclaw config set tools.alsoAllow '["quick-image","quick-image-local"]' --strict-json
 pnpm dev:install:openclaw
 ```
 
@@ -155,7 +155,7 @@ npx --yes --prefer-online \
   quick-image env reset --host openclaw
 ```
 
-正式环境安装使用 `openclaw quick-image setup`。该命令合并 `tools.alsoAllow`、使用正式环境配置覆盖同名 MCP，并在基础配置成功后执行 `mcp reload`。安装或更新完成后仍需执行 `openclaw gateway restart`，以加载新安装的 Plugin；Gateway 恢复后再继续远程授权流程。`setup` 不会在进程内启动 OAuth，而是在完成后输出登录命令。
+正式环境安装使用 `openclaw quick-image setup`。该命令合并 `tools.alsoAllow`（插件 ID `quick-image` 与本地 MCP 名 `quick-image-local`）、使用正式环境配置覆盖远程 MCP、登记 `quick-image-local` 本地 stdio MCP，并在基础配置成功后执行 `mcp reload`。安装或更新完成后仍需执行 `openclaw gateway restart`，以加载新安装的 Plugin；Gateway 恢复后再继续远程授权流程。`setup` 不会在进程内启动 OAuth，而是在完成后输出登录命令。
 
 会话内查不到远程工具时，Agent 应先提醒用户发送 `/reset` 重置会话上下文并等用户重新发起请求（安装流程的 Gateway 重启和 `mcp reload` 都不会刷新已开始的会话，未重置是最常见原因），不要替用户执行。远程工具调用失败，或重置后仍查不到工具时，执行 `openclaw mcp doctor --probe quick-image --json` 做连接与 OAuth 探测。输出 `requires OAuth authorization`、`OAuth credentials are not authorized`、OAuth 原因的 `probe failed` 等信号时，应将其视为当前未登录/授权失效，即使业务工具尚未被调用；输出 DNS、超时、连接拒绝等明确网络错误时，按连接故障处理；没有 `quick-image` server 时，先执行 `openclaw mcp reload` 重载后再次探测，仍没有时先重新安装或启用插件（仅当新装或更新后从未重启过 Gateway 时才先重启）。Agent 确认未登录后，应先告知用户并询问是否需要登录；用户确认后，执行第一条命令并把授权链接发给用户，同时提醒用户不要泄露授权码或在非私聊会话中发送。用户在手机浏览器批准后，只把一次性授权码发回；Agent 校验其为单个安全 code 后，将其作为 `--code` 的单个参数执行第二条命令。登录成功后无需重启 Gateway；Agent 应提示用户在当前对话中发送 `/reset` 重置会话上下文，不要替用户执行。无法安全执行固定命令时，回退为用户手动执行：
 
@@ -172,9 +172,9 @@ OpenClaw 原生 manifest 不负责导入 MCP 配置。正式安装流程必须�
 
 Runtime 包不提供独立的安装诊断命令；安装验证依赖宿主自身的连接与授权探测。Quick Image 不注册会话内容 Hook 或 owner 专属 Trusted Tool Policy，也不在原生运行时额外限制私聊或群聊。共享 Skill 要求 Agent 根据当前会话上下文仅执行 owner 发出的 Quick Image 生成指令，但远程授权流程不以 owner 验证或会话类型作为前置条件，只负责提示 code 保密。这些都属于模型行为约束，不构成原生运行时安全边界。实际访问范围仍由 OpenClaw 自身的渠道访问策略和工具策略决定；原生工具是否被当前工具策略开放，由用户按共享 Skill 的宿主故障处理说明检查插件安装、启用与 `tools.alsoAllow` 配置。
 
-内置适配层使用 `message_received` 登记入站媒体，并通过 `quick_image_list_attachments` 返回不含路径的附件 ID。`quick_image_send_preview` 只向当前会话的可信路由发送 Quick Image 预览，不接受任意渠道、收件人或消息正文。通用 `message` 工具不属于 Quick Image 所需权限。
+内置适配层使用 `message_received` 登记入站媒体，并通过 `quick_image_list_attachments` 返回当前会话的附件候选：每个候选携带 `attachment_id`（分页游标）与 `source_reference`（Runtime 支持的媒体引用或本地绝对路径），模型将 `source_reference` 原样传给 `quick-image-local` 本地 MCP 的 `inspect_attachment`。`quick_image_send_preview` 只向当前会话的可信路由发送 Quick Image 预览，不接受任意渠道、收件人或消息正文。通用 `message` 工具不属于 Quick Image 所需权限。
 
-Quick Image 结果 URL 是无扩展名的对象存储 key，部分渠道（如飞书）的媒体投递依赖文件扩展名或下载时的 Content-Type 区分图片/视频消息与文件消息，且渠道适配器从部署机抓取远程媒体容易失败。因此图片预览采用本地优先投递：`quick_image_send_preview` 把 `display_url` 交给 Runtime 的 `PreviewDownloadService` 受约束下载（仅 HTTPS、拒绝重定向、60s 超时、50MB 上限、magic bytes 只接受 JPEG/PNG/WebP；不做下载域名允许列表和 DNS 私网解析防护，以兼容自建/内网部署的服务端）到私有缓存目录 `<state>/preview-cache`，再以本地绝对路径经 `mediaUrl` 投递；`fileName` 的扩展名以本地检测出的格式为准，任务结果返回的 `preview_content_type`（预览投递内容的 MIME；源文件类型另由 `content_type` 字段提供，仅用于下载场景）仅作参考。缓存以 `sha256(display_url)` 为键复用，不做时间过期清理，仅在目录 ≥ 200MB 时按 mtime 从旧到新淘汰；缓存清理由 Runtime 服务在启动和每次保存后自触发，Plugin 不挂额外定时器、不自行删除缓存文件。成功结果带 `delivered_via: "local_file"`。视频没有独立预览变体，维持远程 URL 投递，用 `preview_content_type`（与源类型一致，`video/mp4`）映射带扩展名的 `fileName`，不触发本地下载。Codex 等仅 Markdown 宿主经 `quick-image-local` 本地 MCP 的 `download_preview_media({ display_url })` 走同一 Runtime 下载服务：成功返回本地绝对路径、magic bytes 检测格式与字节数，Agent 在同一回合内用该路径嵌入 Markdown 图片并紧跟原图下载链接。
+Quick Image 结果 URL 是无扩展名的对象存储 key，部分渠道（如飞书）的媒体投递依赖文件扩展名或下载时的 Content-Type 区分图片/视频消息与文件消息，且渠道适配器从部署机抓取远程媒体容易失败。因此图片预览采用本地优先投递：`quick_image_send_preview` 把 `display_url` 交给 Runtime 的 `PreviewDownloadService` 受约束下载（仅 HTTPS、拒绝重定向、60s 超时、50MB 上限、magic bytes 只接受 JPEG/PNG/WebP；不做下载域名允许列表和 DNS 私网解析防护，以兼容自建/内网部署的服务端）到私有缓存目录 `<state>/openclaw-preview-cache`（与 `quick-image-local` MCP 进程的 `preview-cache` 目录分离，避免跨进程清理竞争），再以本地绝对路径经 `mediaUrl` 投递；`fileName` 的扩展名以本地检测出的格式为准，任务结果返回的 `preview_content_type`（预览投递内容的 MIME；源文件类型另由 `content_type` 字段提供，仅用于下载场景）仅作参考。缓存以 `sha256(display_url)` 为键复用，不做时间过期清理，仅在目录 ≥ 200MB 时按 mtime 从旧到新淘汰；缓存清理由 Runtime 服务在启动和每次保存后自触发，Plugin 不挂额外定时器、不自行删除缓存文件。成功结果带 `delivered_via: "local_file"`。视频没有独立预览变体，维持远程 URL 投递，用 `preview_content_type`（与源类型一致，`video/mp4`）映射带扩展名的 `fileName`，不触发本地下载。Codex 等仅 Markdown 宿主经 `quick-image-local` 本地 MCP 的 `download_preview_media({ display_url })` 走同一 Runtime 下载服务：成功返回本地绝对路径、magic bytes 检测格式与字节数，Agent 在同一回合内用该路径嵌入 Markdown 图片并紧跟原图下载链接。
 
 图片预览下载失败或本地发送失败时不回退远程 URL 投递，OpenClaw 的 `quick_image_send_preview` 与 Codex 的 `download_preview_media` 语义一致：工具返回 `isError`，OpenClaw 收敛为稳定错误码 `PREVIEW_DOWNLOAD_FAILED` / `PREVIEW_SEND_FAILED`，Codex 透传 Runtime 的稳定错误码（`PREVIEW_URL_REJECTED`、`PREVIEW_DOWNLOAD_TIMEOUT`、`PREVIEW_DOWNLOAD_INVALID_MEDIA` 等），`suggested_action` 均指示 Agent 直接发送原图链接文本，不重试、不退回 Markdown 图片。路由缺失、渠道适配器加载失败（`loadAdapter` 返回空）和参数无效仍按原语义抛出；已加载的适配器既不支持 `sendMedia` 也不支持 `sendPayload` 属于投递阶段失败，图片路径收敛为 `PREVIEW_SEND_FAILED` 的 `isError` 结果，视频路径维持抛出。
 
@@ -186,9 +186,9 @@ OpenClaw 提交成功后创建一个每 30 秒运行的 `isolated agentTurn` rec
 
 ## 附件适配契约
 
-宿主或 AI 可以根据用户意图解析路径、浏览目录或搜索文件，并将确定的本地文件绝对路径或 Runtime 支持的媒体引用传给 Quick Image 本地工具。插件信任调用方提供的具体输入，不校验来源或另行实施目录授权；实际可读范围由宿主进程的系统文件权限和 Runtime 的引用解析规则决定。OpenClaw 原生适配层仍从 `message_received` 获取会话媒体路径，持久化为与会话绑定的附件 ID，供模型发现和引用当前会话附件；已知的 `media://` 引用也可以直接传入。`quick_image_list_attachments` 默认返回当前会话最近 10 个候选并按上传时间从旧到新排列，同时用 `has_more` 和 `next_cursor` 分页读取更早候选。模型根据用户意图选定文件后，再将绝对路径、媒体引用或对应 ID 交给 Quick Image 本地工具。
+宿主或 AI 可以根据用户意图解析路径、浏览目录或搜索文件，并将确定的本地文件绝对路径或 Runtime 支持的媒体引用传给 Quick Image 本地工具。插件信任调用方提供的具体输入，不校验来源或另行实施目录授权；实际可读范围由宿主进程的系统文件权限和 Runtime 的引用解析规则决定。OpenClaw 原生适配层仍从 `message_received` 获取会话媒体路径，持久化为与会话绑定的附件记录，供模型发现和引用当前会话附件。`quick_image_list_attachments` 默认返回当前会话最近 10 个候选并按上传时间从旧到新排列，同时用 `has_more` 和 `next_cursor` 分页读取更早候选。模型根据用户意图选定文件后，将其 `source_reference`（或另外确定的绝对路径、媒体引用）交给 `inspect_attachment` 检查。
 
-附件检查会校验普通文件、真实媒体格式、大小和时长，计算 SHA-256，并在权限为 `0700/0600` 的私有状态区记录路径、文件身份和媒体元数据；默认不进行图片、音频或视频语义分析，也不会保存附件字节。这里的校验和读取仅用于完整性校验，不代表内容分析。用户确认报价后，Codex 的 `prepare_attachment` 或 OpenClaw 的 `quick_image_prepare_attachment` 使用一次性 `attachment_handle` 重新读取原文件并比对身份与校验和，图片此时才使用 `sharp` 自动旋转、缩放和压缩，最终字节写入私有暂存区。所有返回值都不包含原始路径。
+附件检查会校验普通文件、真实媒体格式、大小和时长，计算 SHA-256，并在权限为 `0700/0600` 的私有状态区记录路径、文件身份和媒体元数据；默认不进行图片、音频或视频语义分析，也不会保存附件字节。这里的校验和读取仅用于完整性校验，不代表内容分析。用户确认报价后，`prepare_attachment` 使用一次性 `attachment_handle` 重新读取原文件并比对身份与校验和，图片此时才使用 `sharp` 自动旋转、缩放和压缩，最终字节写入私有暂存区。所有返回值都不包含原始路径。
 
 OpenClaw 附件发现索引不复用处理句柄的 TTL，在源文件仍可读取期间保留，并将每个 session 限制为最近 500 条；OpenClaw 配置 `media.ttlHours` 后，宿主删除过期源文件，索引会在下次列表或每 10 分钟的定时清理中同步移除。检查记录和暂存记录仍默认有效 24 小时。成功准备会消费检查记录，成功上传会删除暂存文件；进程启动时再执行一次兜底清理。原文件在报价后变化、删除或不可读取时必须重新检查并重新报价。
 

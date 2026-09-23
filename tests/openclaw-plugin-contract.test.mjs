@@ -13,13 +13,6 @@ describe("OpenClaw plugin contract", () => {
     expect(manifest.skills).toEqual(["./skills"]);
     expect(manifest.contracts.tools).toEqual([
       "quick_image_list_attachments",
-      "quick_image_inspect_attachment",
-      "quick_image_prepare_attachment",
-      "quick_image_estimate_lookbook_credits",
-      "quick_image_estimate_pose_credits",
-      "quick_image_estimate_upscale_credits",
-      "quick_image_estimate_video_credits",
-      "quick_image_upload_staged_attachment",
       "quick_image_send_preview"
     ]);
     expect(manifest.contracts).not.toHaveProperty("trustedToolPolicies");
