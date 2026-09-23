@@ -10,13 +10,6 @@ Quick Image Agent Plugin 让 Codex、WorkBuddy、OpenClaw 等 AI Agent 宿主可
 
 本仓库源码公开可查看，但不是开源软件。安装和使用受 [Quick Image Agent Plugin License](LICENSE)、[服务条款](https://quickimage.ai/terms)和[隐私政策](https://quickimage.ai/privacy)约束。
 
-## 使用要求
-
-- 一个可正常登录的 Quick Image 账号。
-- Codex、WorkBuddy，或 OpenClaw 2026.6.34 及以上版本；WorkBuddy 的版本与安装要求待补充。
-- macOS、Linux 或 Windows WSL2；WSL2 是 Windows 的主要兼容目标，原生 Windows 会尝试兼容但不作完整兼容保证。
-- 宿主本地工具（Codex、WorkBuddy 的本地 MCP 和 OpenClaw 原生插件）需要 Node.js 20 或更高版本。
-
 ## 安装
 
 ### Codex
@@ -48,7 +41,19 @@ codex mcp login quick-image
 
 ### WorkBuddy
 
-WorkBuddy 的安装方式待补充（占位）。插件能力与 Codex 通用：复用同一份共享 Skill 与 Quick Image MCP（远程 `quick-image` 和本地 `quick-image-local`），附件检查、报价、上传和预览下载都走同一套本地 MCP 工具；远程授权通过 WorkBuddy 自身的 MCP OAuth 机制完成。具体的安装命令、插件入口和版本要求确定后在此补充。
+WorkBuddy 暂不支持命令行安装，在客户端界面内手动完成。插件能力与 Codex 通用：复用同一份共享 Skill 与 Quick Image MCP（远程 `quick-image` 和本地 `quick-image-local`），附件检查、报价、上传和预览下载都走同一套本地 MCP 工具；远程授权通过 WorkBuddy 自身的 MCP OAuth 机制完成。
+
+1. 打开 WorkBuddy 客户端，在左侧导航点击「专家·技能·连接器」进入插件管理页面，在「技能」标签页下选择「套件」，点击市场标签行末尾的「+」按钮，在弹出窗口中粘贴下方仓库地址并确认添加市场：
+
+   ```
+   https://github.com/beansmile/quick-image-agent-plugin
+   ```
+
+2. 市场添加成功后，插件列表中会出现「quick-image」套件，点击其「安装」或「+」按钮完成安装。
+3. 切换到「连接器」标签页，点击「自定义连接器」，在弹出的「MCP 服务管理」列表中找到「quick-image」，点击「连接」，在打开的浏览器页面中登录 Quick Image 并批准授权。
+4. 连接成功后，即可在 WorkBuddy 对话中使用 Quick Image 的图片与视频生成能力；如新工具未生效，完全退出并重新启动 WorkBuddy 客户端。
+
+WorkBuddy 没有 `mcp login` 类命令，授权失效或需要切换账号时，在「连接器」中对「quick-image」重新点击「连接」，在浏览器重新完成登录授权即可。
 
 ### OpenClaw
 
@@ -154,7 +159,9 @@ Quick Image 会先检查附件并给出预估价格。确认价格前不会处�
 
 ### Codex、WorkBuddy 查不到 Quick Image 远程 MCP 工具
 
-完成授权后新建一个 Codex 任务，让 Skill 和 MCP 工具生效；桌面端仍看不到时，完全退出并重新打开 Codex。WorkBuddy 的具体排查步骤待补充（占位），可先参照 Codex 思路：确认插件已安装并启用、完成 MCP 授权后新建任务，必要时完全退出并重新打开 WorkBuddy。
+Codex：完成授权后新建一个 Codex 任务，让 Skill 和 MCP 工具生效；桌面端仍看不到时，完全退出并重新打开 Codex。
+
+WorkBuddy：先确认「专家·技能·连接器」中 quick-image 套件已安装，再到「连接器 → 自定义连接器」的「MCP 服务管理」列表确认 quick-image 显示已连接；未连接或授权失效时，对 quick-image 重新点击「连接」完成浏览器授权，然后完全退出并重新启动 WorkBuddy 客户端。安装后从未重启过客户端的，重启后新工具才会加载。
 
 ## 数据与权限
 
