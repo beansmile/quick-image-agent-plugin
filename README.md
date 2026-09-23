@@ -115,6 +115,14 @@ npx --yes --prefer-online \
 
 `reset` 会把 Quick Image MCP 恢复为正式环境配置，不影响其他配置内容，可安全重复执行；`--host` 支持 `codex`、`openclaw` 和 `workbuddy`（Runtime 0.3.0 起提供 workbuddy，需逐个宿主执行）。恢复后需重新完成授权：Codex 重新执行 `codex mcp login quick-image` 并新建任务加载配置；WorkBuddy 完全退出并重新打开后重新完成 quick-image MCP 授权；OpenClaw 重新执行 `openclaw mcp login quick-image`，配置即时生效，无需重启 Gateway。
 
+## 退出登录与切换账号
+
+需要退出登录或撤销授权时，直接对当前宿主的 Agent 说「退出 Quick Image 登录」。Agent 会先向你确认影响，确认后调用 Quick Image 远程工具撤销当前宿主的全部授权（同一宿主在其他设备或连接器上的授权也会一并失效）。宿主本地残留的失效凭据无害，重新使用时重新完成登录授权即可。
+
+也可以随时在 Quick Image 前台的已授权应用页（[https://quickimage.ai/agent-plugin?tab=authorizations](https://quickimage.ai/agent-plugin?tab=authorizations)）查看和撤销各宿主的授权；Agent 自动撤销失败时，同样可以在该页面自行撤销。
+
+切换账号当前不支持直接切换：对 Agent 说「切换 Quick Image 账号」，Agent 会说明流程并确认，先退出当前账号的授权，再引导你重新登录；重新授权时在浏览器中用想使用的账号完成登录和授权即可。
+
 ## 如何使用
 
 安装并授权后，在新对话中发送所需附件，再直接描述生成目标。例如：

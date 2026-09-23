@@ -120,3 +120,4 @@ openclaw mcp login quick-image --code '<code>'
 ## 5. 连接故障边界
 
 只有状态检查明确指向 DNS、超时、连接拒绝或其他非授权网络故障时，才按连接故障停止。不要扫描端口、工作区或插件目录，也不要改用临时 Token、Bearer Token、任意 URL 或其他上传入口。
+
