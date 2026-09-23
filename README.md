@@ -41,7 +41,7 @@ codex mcp login quick-image
 
 ### WorkBuddy
 
-WorkBuddy 暂不支持命令行安装，在客户端界面内手动完成。插件能力与 Codex 通用：复用同一份共享 Skill 与 Quick Image MCP（远程 `quick-image` 和本地 `quick-image-local`），附件检查、报价、上传和预览下载都走同一套本地 MCP 工具；远程授权通过 WorkBuddy 自身的 MCP OAuth 机制完成。
+WorkBuddy 暂不支持命令行安装，在客户端界面内手动完成。插件能力与 Codex 通用：复用同一份共享 Skill 与 Quick Image MCP（远程 `quick-image` 和本地 `quick-image-local`），附件检查、报价和上传都走同一套本地 MCP 工具；WorkBuddy 客户端不渲染本地路径，图片预览不走本地下载，直接用结果 `display_url` 在对话内 Markdown 内联。远程授权通过 WorkBuddy 自身的 MCP OAuth 机制完成。
 
 1. 打开 WorkBuddy 客户端，在左侧导航点击「专家·技能·连接器」进入插件管理页面，在「技能」标签页下选择「套件」，点击市场标签行末尾的「+」按钮，在弹出窗口中粘贴下方仓库地址并确认添加市场：
 
@@ -166,7 +166,7 @@ WorkBuddy：先确认「专家·技能·连接器」中 quick-image 套件已安
 ## 数据与权限
 
 - 插件支持当前会话附件，以及宿主或 AI 根据用户意图提供的本地文件绝对路径或 Runtime 支持的媒体引用。插件信任调用方提供的具体输入，不校验来源或另行实施目录授权；实际可读范围由宿主进程的系统文件权限和 Runtime 的引用解析规则决定。
-- 发送生成结果时，图片预览由本地 Runtime 受约束下载（仅 HTTPS、拒绝重定向、超时与大小上限、格式校验）到私有缓存目录后，以本地文件投递：OpenClaw 投递给聊天渠道并按本地检测出的格式标注带扩展名的文件名；Codex、WorkBuddy 等仅 Markdown 宿主用返回的本地路径嵌入图片预览。下载或本地发送失败时退为发送原图链接文本，不回退远程 URL 投递。视频预览直接使用结果地址投递，并用任务结果返回的 `preview_content_type` 标注扩展名文件名。
+- 发送生成结果时，图片预览按宿主投递：OpenClaw 由本地 Runtime 受约束下载（仅 HTTPS、拒绝重定向、超时与大小上限、格式校验）到私有缓存后，以本地文件投递聊天渠道；Codex 等仅 Markdown 宿主用下载返回的本地路径嵌入预览；WorkBuddy 客户端不渲染本地路径，直接用预览 `display_url` 在对话内 Markdown 内联。前两者下载或本地发送失败时退为发送原图链接文本。视频预览直接使用结果地址投递，并按 `preview_content_type` 标注扩展名文件名。
 - 插件不提供 Quick Image 云端图库浏览；用户可以直接提供已知的 Quick Image `asset_id`，素材归属和可用性由服务端校验。
 - 报价阶段不上传附件、不扣费，也不锁定最终价格；最终校验和计费以服务端结果为准。
 
