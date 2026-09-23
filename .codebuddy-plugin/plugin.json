@@ -1,6 +1,6 @@
 {
   "name": "quick-image",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Quick Image 图像与视频生成插件：检查会话附件或本地媒体，执行搭配出图、换姿、高清与视频生成。",
   "description_en": "Inspect host-provided conversation attachments or local media and run Quick Image generation workflows.",
   "author": {
