@@ -150,11 +150,11 @@ Prompt 来源选择：
 
 ## 本地估价工具
 
-| 能力 | 通用本地 MCP（Codex、WorkBuddy 等） | OpenClaw 原生工具 | 直接参数 |
-| --- | --- | --- | --- |
-| 搭配出图 | `estimate_lookbook_credits` | `quick_image_estimate_lookbook_credits` | `pricing`、`preset`、`preset_price_behavior`、`output_count` |
-| 换姿 | `estimate_pose_credits` | `quick_image_estimate_pose_credits` | `pricing`、`preset`、`preset_price_behavior`、`person_count`、`output_count_per_person` |
-| 高清 | `estimate_upscale_credits` | `quick_image_estimate_upscale_credits` | `pricing`、`input_count` |
-| 视频 | `estimate_video_credits` | `quick_image_estimate_video_credits` | `pricing`、`output_duration_seconds`、`input_video_duration_seconds` |
+| 能力 | 本地估价工具 | 直接参数 |
+| --- | --- | --- |
+| 搭配出图 | `estimate_lookbook_credits` | `pricing`、`preset`、`preset_price_behavior`、`output_count` |
+| 换姿 | `estimate_pose_credits` | `pricing`、`preset`、`preset_price_behavior`、`person_count`、`output_count_per_person` |
+| 高清 | `estimate_upscale_credits` | `pricing`、`input_count` |
+| 视频 | `estimate_video_credits` | `pricing`、`output_duration_seconds`、`input_video_duration_seconds` |
 
 四个工具都必须接收当前配置的 `estimation_contract_version` 和完整 `confirmation_thresholds`。搭配、换姿未选择预设时 `preset` 传 `null`；视频没有输入视频时 `input_video_duration_seconds` 传 `null`。每个估价工具只估算当前能力，不传 `capability`、不自行选择图片价格来源、拼接价格字段、改变费率或由模型重复计算结果。用户明确要求跨能力连续处理时，每项能力分别读取配置并估价。Quick Image 不提供云端图库浏览；这不限制宿主或 AI 根据用户意图搜索本地目录，也不限制用户直接提供已知的 `asset_id`。

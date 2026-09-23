@@ -1,6 +1,6 @@
 # Quick Image Agent Plugin
 
-Quick Image Agent Plugin 让 Codex、WorkBuddy、OpenClaw 等 AI Agent 宿主可以使用当前会话附件，以及宿主或 AI 根据用户意图提供的本地图片、视频和音频完成 AI 图片和视频生成。除 OpenClaw 需要原生适配工具外，其他宿主复用同一套 Skill 与 Quick Image MCP。
+Quick Image Agent Plugin 让 Codex、WorkBuddy、OpenClaw 等 AI Agent 宿主可以使用当前会话附件，以及宿主或 AI 根据用户意图提供的本地图片、视频和音频完成 AI 图片和视频生成。所有宿主复用同一套 Skill 与 Quick Image MCP；OpenClaw 在此之上额外提供会话附件列表与结果预览投递两个专属原生工具。
 
 - 支持搭配出图、换姿、高清和视频生成。
 - 创建任务前先展示预估价格，只有在你确认后才处理并上传附件。
@@ -72,7 +72,7 @@ openclaw plugins enable quick-image
 openclaw quick-image setup
 ```
 
-`setup` 会在保留原有条目的前提下，将 `quick-image` 加入 `tools.alsoAllow`，使用正式环境配置覆盖同名 MCP，然后重新加载 MCP 配置。重复执行不会重复添加工具权限。安装或更新完成后，需要重启 Gateway 以加载新安装的 Plugin：
+`setup` 会在保留原有条目的前提下，将 `quick-image` 插件与 `quick-image-local` 本地 MCP 加入 `tools.alsoAllow`，使用正式环境配置覆盖远程 MCP（`quick-image`），并登记本地处理 MCP（`quick-image-local`，提供附件检查、报价、上传和预览下载工具），然后重新加载 MCP 配置。重复执行不会重复添加工具权限。安装或更新完成后，需要重启 Gateway 以加载新安装的 Plugin：
 
 ```bash
 openclaw gateway restart

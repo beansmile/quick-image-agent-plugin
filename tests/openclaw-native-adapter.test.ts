@@ -8,9 +8,8 @@ import plugin, {
   createPreviewTool,
   enqueuePendingRegistration
 } from "../src/openclaw-adapter/index.js";
-import { createOpenClawLocalTools } from "../src/openclaw-adapter/local-tools.js";
 import { OpenClawAttachmentRegistry } from "../src/openclaw/attachment-registry.js";
-import { HANDLE_TTL_MS, type AttachmentPipelinePort } from "quick-image-agent-runtime";
+import { HANDLE_TTL_MS } from "quick-image-agent-runtime";
 
 const temporaryDirectories: string[] = [];
 
@@ -54,7 +53,7 @@ describe("OpenClaw native preview adapter", () => {
     const registerCli = vi.fn();
     plugin.register(createApi({ registerTool, registerCli }));
 
-    expect(registerTool).toHaveBeenCalledTimes(9);
+    expect(registerTool).toHaveBeenCalledTimes(2);
     expect(registerCli).toHaveBeenCalledWith(expect.any(Function), expect.objectContaining({
       descriptors: [expect.objectContaining({
         name: "quick-image",
@@ -63,23 +62,16 @@ describe("OpenClaw native preview adapter", () => {
     }));
     expect(registerTool.mock.calls.map((call) => call[1])).toEqual([
       { name: "quick_image_list_attachments" },
-      { name: "quick_image_inspect_attachment" },
-      { name: "quick_image_prepare_attachment" },
-      { name: "quick_image_estimate_lookbook_credits" },
-      { name: "quick_image_estimate_pose_credits" },
-      { name: "quick_image_estimate_upscale_credits" },
-      { name: "quick_image_estimate_video_credits" },
-      { name: "quick_image_upload_staged_attachment" },
       { name: "quick_image_send_preview" }
     ]);
     expect(registerTool.mock.calls[0]?.[1]).not.toHaveProperty("optional");
 
-    // register() 预热的预览缓存目录在私有状态目录下初始化。
-    const previewCache = path.join(root, "upload-bridge", "preview-cache");
+    // register() 预热的预览缓存目录在私有状态目录下初始化，且与 quick-image-local MCP 的缓存目录隔离。
+    const previewCache = path.join(root, "upload-bridge", "openclaw-preview-cache");
     await waitForCondition(() => existsSync(previewCache));
   });
 
-  it("lists only opaque attachment ids for the current attachment message", async () => {
+  it("lists attachment candidates with source references for the current attachment message", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
     temporaryDirectories.push(root);
     const registry = createAvailableRegistry(root);
@@ -101,9 +93,10 @@ describe("OpenClaw native preview adapter", () => {
     const result = await tool.execute("call-1", {});
     const output = result.content[0]?.text ?? "";
     expect(output).toMatch(/qio_[A-Za-z0-9_-]{43}/);
+    // source_reference 有意暴露给 AI，用于传给 quick-image-local MCP 的 inspect_attachment。
+    expect(output).toContain('"source_reference":"/private/openclaw/media/inbound/reference.jpg"');
     expect(output).toContain('"message_id":"message-1"');
     expect(output).toContain('"has_more":false');
-    expect(output).not.toContain("/private/openclaw");
   });
 
   it("treats an empty optional message id as omitted", async () => {
@@ -585,154 +578,6 @@ describe("OpenClaw native preview adapter", () => {
     })).rejects.toThrow("preview_content_type 必须是有效的 MIME 类型");
   });
 
-  it("uses the shared attachment pipeline without exposing a local path", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
-    temporaryDirectories.push(root);
-    const registry = createAvailableRegistry(root);
-    await registry.register({
-      sessionKey: "session-1",
-      attachments: [{
-        source_reference: "/private/openclaw/media/inbound/reference.jpg",
-        kind: "image",
-        position: 1
-      }]
-    });
-    const [attachment] = await registry.list("session-1");
-    const pipeline = createPipelineFixture();
-    const tools = createOpenClawLocalTools(registry, async () => pipeline, { sessionKey: "session-1" });
-    const inspect = tools.find((tool) => tool.name === "quick_image_inspect_attachment");
-
-    const result = await inspect?.execute("call-1", { attachment_id: attachment?.attachment_id });
-
-    expect(pipeline.inspect).toHaveBeenCalledWith(
-      "/private/openclaw/media/inbound/reference.jpg",
-      "session-1"
-    );
-    expect(result?.content[0]?.text).toContain('"attachment_handle":"qia_');
-    expect(result?.content[0]?.text).not.toContain("/private/openclaw");
-  });
-
-  it("passes a host-resolved local path into the shared attachment pipeline", async () => {
-    const pipeline = createPipelineFixture();
-    const tools = createOpenClawLocalTools(
-      new OpenClawAttachmentRegistry("/unused"),
-      async () => pipeline,
-      { sessionKey: "session-1" }
-    );
-    const inspect = tools.find((tool) => tool.name === "quick_image_inspect_attachment");
-
-    const result = await inspect?.execute("call-1", { path: "/tmp/quick-image-test/input.png" });
-
-    expect(pipeline.inspect).toHaveBeenCalledWith("/tmp/quick-image-test/input.png", "session-1");
-    expect(result?.content[0]?.text).toContain('"attachment_handle":"qia_');
-  });
-
-  it("passes media references through the direct path input", async () => {
-    const pipeline = createPipelineFixture();
-    const tools = createOpenClawLocalTools(
-      new OpenClawAttachmentRegistry("/unused"),
-      async () => pipeline,
-      { sessionKey: "session-1" }
-    );
-    const inspect = tools.find((tool) => tool.name === "quick_image_inspect_attachment");
-
-    const result = await inspect?.execute("call-1", { path: "media://inbound/other-session.png" });
-
-    expect(result?.isError).not.toBe(true);
-    expect(pipeline.inspect).toHaveBeenCalledWith("media://inbound/other-session.png", "session-1");
-  });
-
-  it("requires exactly one attachment source", async () => {
-    const pipeline = createPipelineFixture();
-    const tools = createOpenClawLocalTools(
-      new OpenClawAttachmentRegistry("/unused"),
-      async () => pipeline,
-      { sessionKey: "session-1" }
-    );
-    const inspect = tools.find((tool) => tool.name === "quick_image_inspect_attachment");
-
-    expect(inspect?.parameters.oneOf).toEqual([
-      { required: ["attachment_id"] },
-      { required: ["path"] }
-    ]);
-
-    const missingSourceResult = await inspect?.execute("call-1", {});
-    const duplicateSourceResult = await inspect?.execute("call-2", {
-      attachment_id: `qio_${"a".repeat(43)}`,
-      path: "/tmp/quick-image-test/input.png"
-    });
-
-    expect(missingSourceResult?.isError).toBe(true);
-    expect(missingSourceResult?.content[0]?.text).toContain('"code":"LOCAL_TOOL_ERROR"');
-    expect(duplicateSourceResult?.isError).toBe(true);
-    expect(duplicateSourceResult?.content[0]?.text).toContain('"code":"LOCAL_TOOL_ERROR"');
-    expect(pipeline.inspect).not.toHaveBeenCalled();
-  });
-
-  it("rejects an attachment id from another OpenClaw session", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "quick-image-openclaw-native-test-"));
-    temporaryDirectories.push(root);
-    const registry = createAvailableRegistry(root);
-    await registry.register({
-      sessionKey: "session-1",
-      attachments: [{ source_reference: "/private/openclaw/media/inbound/reference.jpg", kind: "image", position: 1 }]
-    });
-    const [attachment] = await registry.list("session-1");
-    const pipeline = createPipelineFixture();
-    const tools = createOpenClawLocalTools(registry, async () => pipeline, { sessionKey: "session-2" });
-    const inspect = tools.find((tool) => tool.name === "quick_image_inspect_attachment");
-
-    const result = await inspect?.execute("call-1", { attachment_id: attachment?.attachment_id });
-
-    expect(result?.isError).toBe(true);
-    expect(result?.content[0]?.text).toContain('"code":"OPENCLAW_ATTACHMENT_NOT_FOUND"');
-    expect(pipeline.inspect).not.toHaveBeenCalled();
-  });
-
-  it("keeps prepare and upload handles scoped to the current session", async () => {
-    const pipeline = createPipelineFixture();
-    const tools = createOpenClawLocalTools(
-      new OpenClawAttachmentRegistry("/unused"),
-      async () => pipeline,
-      { sessionKey: "session-1" }
-    );
-    const prepare = tools.find((tool) => tool.name === "quick_image_prepare_attachment");
-    const upload = tools.find((tool) => tool.name === "quick_image_upload_staged_attachment");
-    const attachmentHandle = `qia_${"a".repeat(43)}`;
-    const stagedHandle = `qis_${"b".repeat(43)}`;
-    const directUpload = {
-      asset_id: "asset-test",
-      upload_url: "https://upload.example.com/object",
-      headers: { "content-type": "image/png" },
-      expires_at: new Date(Date.now() + 60_000).toISOString()
-    };
-
-    await prepare?.execute("call-1", { attachment_handle: attachmentHandle });
-    await upload?.execute("call-2", { staged_handle: stagedHandle, direct_upload: directUpload });
-
-    expect(pipeline.prepare).toHaveBeenCalledWith(attachmentHandle, "session-1");
-    expect(pipeline.upload).toHaveBeenCalledWith(stagedHandle, directUpload, "session-1");
-  });
-
-  it("exposes the shared deterministic estimator as an OpenClaw native tool", async () => {
-    const tools = createOpenClawLocalTools(
-      new OpenClawAttachmentRegistry("/unused"),
-      async () => createPipelineFixture(),
-      { sessionKey: "session-1" }
-    );
-    const estimate = tools.find((tool) => tool.name === "quick_image_estimate_lookbook_credits");
-    const result = await estimate?.execute("call-1", {
-      estimation_contract_version: 1,
-      pricing: { billing_strategy: "output_count", unit_credits: 10 },
-      preset: null,
-      preset_price_behavior: "use_model",
-      output_count: 2,
-      confirmation_thresholds: { output_count: 5, image_credits: 100, video_credits: 200 }
-    });
-
-    expect(result?.content[0]?.text).toContain('"estimated_credits":20');
-  });
-
 });
 
 function createApi(overrides: {
@@ -777,30 +622,6 @@ async function waitForCondition(condition: () => boolean, timeoutMs = 2000): Pro
     if (Date.now() > deadline) throw new Error("waitForCondition: 条件在超时内未满足");
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
-}
-
-function createPipelineFixture() {
-  return {
-    inspect: vi.fn().mockResolvedValue({
-      attachment_handle: `qia_${"a".repeat(43)}`,
-      kind: "image",
-      content_type: "image/jpeg",
-      byte_size: 100,
-      metadata: { width: 10, height: 10 },
-      expires_at: new Date(Date.now() + 60_000).toISOString()
-    }),
-    prepare: vi.fn().mockResolvedValue({
-      staged_handle: `qis_${"b".repeat(43)}`,
-      create_direct_upload_args: {},
-      expires_at: new Date(Date.now() + 60_000).toISOString()
-    }),
-    upload: vi.fn().mockResolvedValue({ asset_id: "asset-test" }),
-    cleanupExpired: vi.fn().mockResolvedValue(undefined)
-  } as unknown as AttachmentPipelinePort & {
-    inspect: ReturnType<typeof vi.fn>;
-    prepare: ReturnType<typeof vi.fn>;
-    upload: ReturnType<typeof vi.fn>;
-  };
 }
 
 function createAvailableRegistry(root: string) {
