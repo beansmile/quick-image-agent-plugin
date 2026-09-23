@@ -1,6 +1,6 @@
 ---
 name: quick-image
-description: 使用 Quick Image 对当前会话附件或宿主可访问的本地媒体执行搭配出图、换姿、高清或视频生成，或检查、更新或重装 Quick Image Agent Plugin。用户要求基于图片、视频或音频生成内容、查询 Quick Image 任务、查看生成结果，或要求更新、重装 Quick Image 插件时使用；生成任务必须先读取公开配置并本地预估报价，确认后再执行安全附件上传、幂等提交和限速轮询流程；更新或重装需先从服务端获取安装指令再执行；
+description: 使用 Quick Image 对当前会话附件或宿主可访问的本地媒体执行搭配出图、换姿、高清或视频生成，或检查、更新或重装 Quick Image Agent Plugin。用户要求基于图片、视频或音频生成内容、查询 Quick Image 任务、查看生成结果，要求更新、重装 Quick Image 插件，或要求退出登录、撤销 Quick Image 授权、切换账号时使用；生成任务必须先读取公开配置并本地预估报价，确认后再执行安全附件上传、幂等提交和限速轮询流程；更新或重装需先从服务端获取安装指令再执行；退出登录需先向用户确认影响再调用撤销工具，撤销失败时引导用户到前台授权管理页自行撤销；
 ---
 
 # Quick Image 生成
@@ -28,6 +28,8 @@ description: 使用 Quick Image 对当前会话附件或宿主可访问的本地
 
 用户主动要求登录 Quick Image 时，同样读取 [auth.md](references/auth.md) 并直接按其中宿主登录流程执行。
 
+用户主动要求退出登录、撤销 Quick Image 授权或切换账号时，读取 [signout.md](references/signout.md) 并按其中流程执行；用户确认前不得调用 `revoke_authorization`，用户只是排障或表达不满时不得主动撤销。
+
 ## 版本升级与重装
 
 用户询问是否有新版本、明确请求更新或重装 Plugin，或 MCP 工具返回 `upgrade_required` 时，读取 [version.md](references/version.md) 并按其中流程处理。发生 `upgrade_required` 时，完成更新前停止当前生成流程。
@@ -36,13 +38,14 @@ description: 使用 Quick Image 对当前会话附件或宿主可访问的本地
 
 只在进入对应阶段时读取 reference，避免把全部能力规则常驻在上下文中：
 
-1. 开始时先按宿主工具发现能力查找 Quick Image 远程工具和本地工具。远程工具包括 `get_agent_plugin_installation_plan`、`get_generation_config`、`create_direct_upload`、`submit_lookbook_task`、`submit_pose_task`、`submit_upscale_task`、`submit_video_task`、`list_generation_tasks` 和 `get_generation_tasks`。本地工具由 `quick-image-local` 本地 MCP 提供：`inspect_attachment`、`prepare_attachment`、`upload_staged_attachment`、`download_preview_media`、`estimate_lookbook_credits`、`estimate_pose_credits`、`estimate_upscale_credits` 和 `estimate_video_credits`。OpenClaw 另有两个专属原生工具：`quick_image_list_attachments`（列出当前会话附件）和 `quick_image_send_preview`（向当前会话发送结果预览）。
+1. 开始时先按宿主工具发现能力查找 Quick Image 远程工具和本地工具。远程工具包括 `get_agent_plugin_installation_plan`、`get_generation_config`、`create_direct_upload`、`submit_lookbook_task`、`submit_pose_task`、`submit_upscale_task`、`submit_video_task`、`list_generation_tasks`、`get_generation_tasks` 和用于退出登录的 `revoke_authorization`。本地工具由 `quick-image-local` 本地 MCP 提供：`inspect_attachment`、`prepare_attachment`、`upload_staged_attachment`、`download_preview_media`、`estimate_lookbook_credits`、`estimate_pose_credits`、`estimate_upscale_credits` 和 `estimate_video_credits`。OpenClaw 另有两个专属原生工具：`quick_image_list_attachments`（列出当前会话附件）和 `quick_image_send_preview`（向当前会话发送结果预览）。
 2. 发现工具后调用 `get_generation_config`。确定能力、模型、参数、模板、附件角色和动态限制前，读取 [parameters.md](references/parameters.md)。不要使用记忆中的旧配置或固定限制。
 3. 任务需要附件时，读取 [attachments.md](references/attachments.md)，根据用户意图从会话附件中选择媒体，或由宿主或 AI 确定本地媒体绝对路径或媒体引用，再检查附件并保留一次性 `attachment_handle`。检查阶段不得准备、上传或创建直传信息。
 4. 需要报价、等待用户确认、确认后上传或提交任务时，读取 [submission.md](references/submission.md)。只调用与当前能力对应的估价和提交工具；本地预估完成并取得用户确认后才执行上传，余额不足时立即停止。
 5. 任务提交成功、需要轮询、发送结果或查询历史时，读取 [results.md](references/results.md)。
 6. 工具字段语义不明确时读取 [tools.md](references/tools.md)；它是工具契约参考，不替代当前 MCP Schema 或 `get_generation_config` 返回的动态约束。
 7. 进入版本升级或重装流程时读取 [version.md](references/version.md)，按安装指令完成宿主操作后再恢复业务流程。
+8. 进入退出登录、撤销授权或切换账号流程时读取 [signout.md](references/signout.md)，按其中确认、撤销和失败兜底规则执行。
 
 ## 宿主边界
 
