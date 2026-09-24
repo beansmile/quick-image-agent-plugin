@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       quick-image-agent-runtime:
-        specifier: 0.3.0
-        version: 0.3.0(@types/node@24.3.0)
+        specifier: 0.3.1
+        version: 0.3.1(@types/node@24.3.0)
       zod:
         specifier: 3.25.76
         version: 3.25.76
@@ -1328,8 +1328,8 @@ packages:
     resolution: {integrity: sha512-h6fhOIaRrID2CbEY2fqs+7t+UXZo+MLAnU5gRIq85uFtdiUPCdsApMlHhXogKVM4HM2DVbIjGNTTYH2OcmP1vA==}
     engines: {node: '>=0.6'}
 
-  quick-image-agent-runtime@0.3.0:
-    resolution: {integrity: sha512-h1xFrIIbnVWupRXAlT1olpHdPcmMskOiMzEw7Qn4EUXNBdvDcQrH741hHhY1AgT23mY7FOeen++UCDON5E9QsA==}
+  quick-image-agent-runtime@0.3.1:
+    resolution: {integrity: sha512-XD9oIB9P3oTCc6oNBPK1lhgQA2z60Oa64Pb4PuGjnBWVTXexTvz/abtF5xfWvczA+l0o/G9m2L7TjpP9c5z+oA==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -2685,7 +2685,7 @@ snapshots:
       es-define-property: 1.0.1
       side-channel: 1.1.1
 
-  quick-image-agent-runtime@0.3.0(@types/node@24.3.0):
+  quick-image-agent-runtime@0.3.1(@types/node@24.3.0):
     dependencies:
       '@modelcontextprotocol/sdk': 1.30.0(zod@3.25.76)
       ipaddr.js: 2.2.0
