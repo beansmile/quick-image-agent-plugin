@@ -117,11 +117,11 @@ npx --yes --prefer-online \
 
 ## 退出登录与切换账号
 
-需要退出登录或撤销授权时，直接对当前宿主的 Agent 说「退出 Quick Image 登录」。Agent 会先向你确认影响，确认后调用 Quick Image 远程工具撤销当前宿主的全部授权（同一宿主在其他设备或连接器上的授权也会一并失效）。宿主本地残留的失效凭据无害，重新使用时重新完成登录授权即可。
+需要退出登录或撤销授权时，直接对当前宿主的 Agent 说「退出 Quick Image 登录」。Agent 会先向你确认影响，确认后调用 Quick Image 远程工具撤销当前宿主的全部授权（同一宿主在其他设备或连接器上的授权也会一并失效）。撤销后客户端可能仍显示旧的已登录状态，重新登录或切换账号前请先完全退出并重启客户端：Codex 完全退出并重新打开 Codex；WorkBuddy 完全退出并重新启动 WorkBuddy 客户端；OpenClaw 授权即时生效，无需重启。宿主本地残留的失效凭据无害，重新使用时重新完成登录授权即可。
 
-也可以随时在 Quick Image 前台的已授权应用页（[https://quickimage.ai/agent-plugin?tab=authorizations](https://quickimage.ai/agent-plugin?tab=authorizations)）查看和撤销各宿主的授权；Agent 自动撤销失败时，同样可以在该页面自行撤销。
+也可以随时在 Quick Image 前台的已授权应用页（[https://quickimage.ai/agent-plugin?tab=authorizations](https://quickimage.ai/agent-plugin?tab=authorizations)）查看和撤销各宿主的授权；Agent 自动撤销失败时，同样可以在该页面自行撤销，撤销后按上述方式重启客户端再重新登录。
 
-切换账号当前不支持直接切换：对 Agent 说「切换 Quick Image 账号」，Agent 会说明流程并确认，先退出当前账号的授权，再引导你重新登录；重新授权时在浏览器中用想使用的账号完成登录和授权即可。
+切换账号当前不支持直接切换：对 Agent 说「切换 Quick Image 账号」，Agent 会说明流程并确认，先退出当前账号的授权，再提醒你重启客户端并引导你重新登录；重新授权时在浏览器中用想使用的账号完成登录和授权即可。
 
 ## 如何使用
 
