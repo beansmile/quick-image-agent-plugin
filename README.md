@@ -6,7 +6,7 @@ Quick Image Agent Plugin 让 Codex、WorkBuddy、OpenClaw 等 AI Agent 宿主可
 - 创建任务前先展示预估价格，只有在你确认后才处理并上传附件。
 - 生成完成后返回预览和原文件下载链接。
 
-[Quick Image 官网](https://quickimage.ai) · [https://github.com/beansmile/quick-image-agent-plugin](https://github.com/beansmile/quick-image-agent-plugin)
+[Quick Image 官网](https://quickimage.ai) · [https://gitee.com/beansmile/quick-image-agent-plugin](https://gitee.com/beansmile/quick-image-agent-plugin)
 
 本仓库源码公开可查看，但不是开源软件。安装和使用受 [Quick Image Agent Plugin License](LICENSE)、[服务条款](https://quickimage.ai/terms)和[隐私政策](https://quickimage.ai/privacy)约束。
 
@@ -14,10 +14,10 @@ Quick Image Agent Plugin 让 Codex、WorkBuddy、OpenClaw 等 AI Agent 宿主可
 
 ### Codex
 
-Quick Image 暂未上架 Codex 官方 Plugin Marketplace，请从 GitHub 仓库安装：
+Quick Image 暂未上架 Codex 官方 Plugin Marketplace，请从以下仓库地址安装：
 
 ```bash
-codex plugin marketplace add https://github.com/beansmile/quick-image-agent-plugin
+codex plugin marketplace add https://gitee.com/beansmile/quick-image-agent-plugin
 codex plugin add quick-image@quick-image
 ```
 
@@ -46,7 +46,7 @@ WorkBuddy 暂不支持命令行安装，在客户端界面内手动完成。插�
 1. 打开 WorkBuddy 客户端，在左侧导航点击「专家·技能·连接器」进入插件管理页面，在「技能」标签页下选择「套件」，点击市场标签行末尾的「+」按钮，在弹出窗口中粘贴下方仓库地址并确认添加市场：
 
    ```
-   https://github.com/beansmile/quick-image-agent-plugin
+   https://gitee.com/beansmile/quick-image-agent-plugin
    ```
 
 2. 市场添加成功后，插件列表中会出现「quick-image」套件，点击其「安装」或「+」按钮完成安装。

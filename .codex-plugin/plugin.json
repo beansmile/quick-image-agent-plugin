@@ -1,13 +1,13 @@
 {
   "name": "quick-image",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "安全检查和上传对话附件，并使用 Quick Image 生成图片或视频。",
   "author": {
     "name": "Minded One, LLC",
     "url": "https://quickimage.ai"
   },
   "homepage": "https://quickimage.ai",
-  "repository": "https://github.com/beansmile/quick-image-agent-plugin",
+  "repository": "https://gitee.com/beansmile/quick-image-agent-plugin",
   "license": "LicenseRef-Quick-Image",
   "keywords": [
     "image-generation",
