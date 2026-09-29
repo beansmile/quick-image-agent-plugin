@@ -2,7 +2,7 @@
 
 本文面向 Quick Image Agent Plugin 的维护者，介绍本地构建、宿主调试、架构契约和发布校验。普通用户请阅读 [README.md](README.md)。
 
-[https://github.com/beansmile/quick-image-agent-plugin.git](https://github.com/beansmile/quick-image-agent-plugin.git)
+[https://gitee.com/beansmile/quick-image-agent-plugin.git](https://gitee.com/beansmile/quick-image-agent-plugin.git)
 
 ## 架构与能力边界
 
