@@ -292,7 +292,8 @@ export function createListAttachmentsTool(
     async execute(_toolCallId: string, rawParameters: unknown) {
       const parameters = parseListParameters(rawParameters);
       if (!context.sessionKey) throw new Error("当前 OpenClaw 会话没有可用的附件上下文。");
-      await pendingRegistrations.get(context.sessionKey);
+      // 前序登记失败只影响那一条附件，不阻塞列表返回其余已登记附件。
+      await pendingRegistrations.get(context.sessionKey)?.catch(() => undefined);
       const result = await registry.listCandidates(context.sessionKey, {
         ...(parameters.message_id ? { messageId: parameters.message_id } : {}),
         ...(parameters.limit ? { limit: parameters.limit } : {}),

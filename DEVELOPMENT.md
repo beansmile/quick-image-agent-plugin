@@ -20,7 +20,7 @@ Quick Image Agent Plugin 为 Codex、WorkBuddy、OpenClaw 等 Agent 宿主提供
 
 ## 构建环境
 
-- Node.js 20 或更高版本。
+- Node.js 20.6 或更高版本。
 - pnpm 10。
 - macOS、Linux 或 Windows WSL2；WSL2 是 Windows 的主要兼容目标，原生 Windows 会尝试兼容但不作完整兼容保证。
 
@@ -29,7 +29,7 @@ pnpm install --frozen-lockfile
 pnpm check
 ```
 
-Plugin 与 Runtime 均发布到 npm Registry（Plugin 供 OpenClaw 以 npm spec 安装与更新，Runtime 是 Plugin 的固定版本依赖）。Plugin 发布包由 CI 在干净检出中构建和校验；Plugin 依赖与 Codex、WorkBuddy、通用 Agent Plugin 清单固定同一个 `quick-image-agent-runtime` npm Registry 版本（`quick-image-agent-runtime@x.y.z`），不跟随浮动分支或 `latest`。文档与共享 Skill 中供人或 Agent 执行的 Runtime 命令统一使用 `quick-image-agent-runtime@latest`：registry 包名 spec 会被 npx 按版本正确解析与缓存，自动追新且不存在浮动 URL 复用旧缓存的问题。Runtime 的 GitHub Release tgz 由同一 CI 产出，作为 npm 渠道之外的备份地址。Codex、WorkBuddy 等宿主通过 `npx` 首次启动 Runtime 时、OpenClaw 安装 Plugin 依赖时，都只安装当前平台所需的原生依赖。不要从未审核的工作区直接发布。
+Plugin 与 Runtime 均发布到 npm Registry（Plugin 供 OpenClaw 以 npm spec 安装与更新，Runtime 是 Plugin 的固定版本依赖）。Plugin 发布包由 CI 在干净检出中构建和校验；Plugin 依赖与 Codex、WorkBuddy、通用 Agent Plugin 清单固定同一个 `quick-image-agent-runtime` npm Registry 版本（`quick-image-agent-runtime@x.y.z`），不跟随浮动分支或 `latest`。文档与共享 Skill 中供人或 Agent 执行的 Runtime 命令统一使用 `quick-image-agent-runtime@latest`：registry 包名 spec 会被 npx 按版本正确解析与缓存，自动追新且不存在浮动 URL 复用旧缓存的问题。Runtime 的 GitHub Release tgz 由 Runtime 仓库的发布 CI 产出，作为 npm 渠道之外的备份地址。Codex、WorkBuddy 等宿主通过 `npx` 首次启动 Runtime 时、OpenClaw 安装 Plugin 依赖时，都只安装当前平台所需的原生依赖。不要从未审核的工作区直接发布。
 
 ## 环境配置
 
@@ -119,6 +119,29 @@ WorkBuddy 桌面端没有公开 CLI：插件在客户端内经「专家·技能�
 3. 完全退出并重新启动 WorkBuddy 客户端，使新配置和新的 Skill 生效；之后每次更新本地构建产物，重新安装套件或重跑同一命令，再重启客户端。
 
 `env set --host workbuddy` 只更新插件安装目录内 MCP 清单中 `mcpServers.quick-image` 的 `url` 与 `X-Quick-Image-Frontend-URL` 头，其余配置语义不变，并按原文还原 BOM、缩进、行尾与结尾换行；写入前在同目录生成 `.quick-image-backup` 备份，写入后回读校验除目标 URL 和 header 外的内容未被改动，失败自动回滚原文；存在多个安装（不同 scope）时先全部解析规划再统一写入，任何一处失败都不会留下混合环境。符号链接形式的清单会被拒绝修改。调试结束执行 `quick-image env reset --host workbuddy` 恢复正式配置，并重启客户端。
+
+## Grok Bot 集成
+
+Grok Bot 是 xAI 的云端 AI 队友产品（每账号一台持久云端电脑），无 CLI、无插件市场，不能复用本仓库的 manifest 分发。集成形态是三层组合，全部不依赖官方收录：
+
+- **能力层**：远程 MCP connector。用户在 Connect apps 中以目录外 URL 方式添加 `https://quickimage.ai/mcp` 并完成 OAuth 授权；DCR 白名单、版本门禁豁免（connector 宿主无插件版本上报）与安装文案由服务端 `grok_bot` 宿主支持提供。
+- **知识层**：官方分享的「Quick Image 图像助手」Shareable Bot 模板。模板内容以 [skills/quick-image/](skills/quick-image/) 为唯一事实源（Grok Bot 专属素材见 [grok-bot.md](skills/quick-image/references/grok-bot.md)）。skill 不能直接安装进 Grok Bot：发布或更新时把 skill 全部内容交给 Bot，由 Bot 整理进模板——模板只能由 Bot 修改，不能手动编辑——再 Share 生成链接回填 README 与官网。模板是快照分发，流程规则的持续纠偏依赖远程 MCP 工具说明与 `get_agent_plugin_installation_plan`。
+- **执行层**：云电脑本地处理服务。`quick-image-local` 以「在电脑上运行的命令」方式运行（`npx --yes --prefer-online --package quick-image-agent-runtime@latest quick-image-local-mcp`），提供附件检查、压缩、估价与上传；素材上传只允许经它完成，云端电脑重置后需重新添加。
+
+Skill 文档中的 Grok Bot 约定：素材上传唯一路径是本地处理服务，未添加时仅支持无素材任务（[attachments.md](skills/quick-image/references/attachments.md)）；结果展示与 WorkBuddy 同款直接 `display_url` 内联（[results.md](skills/quick-image/references/results.md)）；授权与排障在 Connect apps 界面完成（[auth.md](skills/quick-image/references/auth.md)）；模板身份、首次连接检查、本地服务升级与模板版本检查（[grok-bot.md](skills/quick-image/references/grok-bot.md)）。
+
+### 已实测结论（staging 首轮验证）
+
+1. **目录外 MCP 的 OAuth 形态**：标准 OAuth Authorize + DCR，对接现有 Agent OAuth 成立。
+2. **云电脑命令启动 MCP 的注册形态**：「在电脑上运行的命令」是产品化注册方式，Bot 可直接调用本地工具；云电脑重置后配置丢失，需重新添加（模板文案已含自愈指引）。
+3. **DCR client_name**：连接层经 Cursor MCP OAuth 代理注册，`client_name` 恒为 `Cursor`，服务端已按此识别放行。
+
+### 待实测验证项（发布后人工确认）
+
+1. **模板预配自定义 MCP**：Shareable Bot 模板的 plugins 配置能否携带目录外 URL（官方 Shared Bot 文档称 apps 配置随 Bot 走，但官方市场条目均为目录内 connector）；不能时模板素材中的首次连接检查会引导用户手动添加。
+2. **模板更新机制**：模板更新后能否提示已有用户更新或自动更新；当前以模板素材中「功能不可用时检查新模板版本」的指引兜底。
+
+Grok Bot 无本地调试脚本（无 CLI 可自动化），验证均在 Grok Bot 应用内人工进行；环境切换不支持，本地处理服务固定使用正式地址。
 
 ## OpenClaw 本地调试
 

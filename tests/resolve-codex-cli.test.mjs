@@ -35,7 +35,7 @@ describe("resolveCodexCli", () => {
 
   it("fails with an actionable message when codex is unavailable", () => {
     expect(() => resolveCodexCli({ pathValue: "", platform: "linux", applicationCandidates: [] }))
-      .toThrow("CODEX_CLI_PATH/--codex-bin");
+      .toThrow("CODEX_CLI_PATH 环境变量");
   });
 });
 

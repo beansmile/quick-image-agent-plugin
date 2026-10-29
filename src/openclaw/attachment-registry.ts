@@ -99,6 +99,11 @@ export class OpenClawAttachmentRegistry {
     return (await this.listCandidates(sessionKey, options)).attachments;
   }
 
+  async cleanupUnavailable(): Promise<void> {
+    await this.initialize();
+    await this.readActiveRecords();
+  }
+
   async listCandidates(sessionKey: string, options: ListOptions = {}): Promise<OpenClawAttachmentList> {
     await this.initialize();
     const records = await this.readActiveRecords();
@@ -120,57 +125,6 @@ export class OpenClawAttachmentRegistry {
       has_more: hasMore,
       ...(nextCursor ? { next_cursor: nextCursor } : {})
     };
-  }
-
-  async cleanupUnavailable(): Promise<void> {
-    await this.initialize();
-    await this.readActiveRecords();
-  }
-
-  async resolve(attachmentId: string): Promise<OpenClawAttachmentRecord> {
-    await this.initialize();
-    assertAttachmentId(attachmentId);
-    try {
-      const record = parseRecord(await readFile(this.recordPath(attachmentId), "utf8"));
-      if (!secureEqual(record.attachment_id, attachmentId)) throw new Error("attachment id mismatch");
-      if (!await this.isSourceAvailable(record.source_reference)) throw new Error("attachment source unavailable");
-      return record;
-    } catch {
-      throw new PluginError("OPENCLAW_ATTACHMENT_NOT_FOUND", "OpenClaw 附件引用不存在或源文件已不可用。", {
-        field: "attachment_id",
-        suggested_action: "请重新发送或重新引用附件。"
-      });
-    }
-  }
-
-  async resolveForSession(attachmentId: string, sessionKey: string): Promise<OpenClawAttachmentRecord> {
-    const record = await this.resolve(attachmentId);
-    if (!secureEqual(record.session_digest, digest(sessionKey))) {
-      throw new PluginError("OPENCLAW_ATTACHMENT_NOT_FOUND", "OpenClaw 附件引用不存在、不可用于当前会话或源文件已不可用。", {
-        field: "attachment_id",
-        suggested_action: "请重新发送或重新引用附件。"
-      });
-    }
-    return record;
-  }
-
-  async deleteSession(sessionKey: string): Promise<void> {
-    await this.initialize();
-    const sessionDigest = digest(sessionKey);
-    const entries = await readdir(this.recordsDirectory, { withFileTypes: true });
-    await Promise.all(entries.filter((entry) => entry.isFile()).map(async (entry) => {
-      const filePath = path.join(this.recordsDirectory, entry.name);
-      if (!RECORD_FILENAME_PATTERN.test(entry.name)) {
-        await removeStaleTemporaryRecord(entry.name, filePath);
-        return;
-      }
-      try {
-        const record = parseRecord(await readFile(filePath, "utf8"));
-        if (secureEqual(record.session_digest, sessionDigest)) await rm(filePath, { force: true });
-      } catch {
-        await rm(filePath, { force: true });
-      }
-    }));
   }
 
   private async initializeOnce(): Promise<void> {
@@ -199,7 +153,10 @@ export class OpenClawAttachmentRegistry {
           return;
         }
         records.push(record);
-      } catch {
+      } catch (error) {
+        // 带 code 的 fs 错误（ENOENT 并发删除、EMFILE 等瞬时故障）跳过并保留记录，下次再读；
+        // 无 code 的解析/校验错误说明记录本身损坏，删除。
+        if (typeof (error as NodeJS.ErrnoException).code === "string") return;
         await rm(filePath, { force: true });
       }
     }));

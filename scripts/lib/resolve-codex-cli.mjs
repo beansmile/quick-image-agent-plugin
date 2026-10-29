@@ -21,7 +21,7 @@ export function resolveCodexCli({
   }
 
   throw new Error(
-    "找不到 Codex CLI。请安装 Codex Desktop、将 codex 加入 PATH，或设置 CODEX_CLI_PATH/--codex-bin。"
+    "找不到 Codex CLI。请安装 Codex Desktop、将 codex 加入 PATH，或设置 CODEX_CLI_PATH 环境变量。"
   );
 }
 

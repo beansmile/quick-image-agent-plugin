@@ -64,6 +64,10 @@ var OpenClawAttachmentRegistry = class {
   async list(sessionKey, options = {}) {
     return (await this.listCandidates(sessionKey, options)).attachments;
   }
+  async cleanupUnavailable() {
+    await this.initialize();
+    await this.readActiveRecords();
+  }
   async listCandidates(sessionKey, options = {}) {
     await this.initialize();
     const records = await this.readActiveRecords();
@@ -81,53 +85,6 @@ var OpenClawAttachmentRegistry = class {
       has_more: hasMore,
       ...nextCursor ? { next_cursor: nextCursor } : {}
     };
-  }
-  async cleanupUnavailable() {
-    await this.initialize();
-    await this.readActiveRecords();
-  }
-  async resolve(attachmentId) {
-    await this.initialize();
-    assertAttachmentId(attachmentId);
-    try {
-      const record = parseRecord(await readFile(this.recordPath(attachmentId), "utf8"));
-      if (!secureEqual(record.attachment_id, attachmentId)) throw new Error("attachment id mismatch");
-      if (!await this.isSourceAvailable(record.source_reference)) throw new Error("attachment source unavailable");
-      return record;
-    } catch {
-      throw new PluginError("OPENCLAW_ATTACHMENT_NOT_FOUND", "OpenClaw \u9644\u4EF6\u5F15\u7528\u4E0D\u5B58\u5728\u6216\u6E90\u6587\u4EF6\u5DF2\u4E0D\u53EF\u7528\u3002", {
-        field: "attachment_id",
-        suggested_action: "\u8BF7\u91CD\u65B0\u53D1\u9001\u6216\u91CD\u65B0\u5F15\u7528\u9644\u4EF6\u3002"
-      });
-    }
-  }
-  async resolveForSession(attachmentId, sessionKey) {
-    const record = await this.resolve(attachmentId);
-    if (!secureEqual(record.session_digest, digest(sessionKey))) {
-      throw new PluginError("OPENCLAW_ATTACHMENT_NOT_FOUND", "OpenClaw \u9644\u4EF6\u5F15\u7528\u4E0D\u5B58\u5728\u3001\u4E0D\u53EF\u7528\u4E8E\u5F53\u524D\u4F1A\u8BDD\u6216\u6E90\u6587\u4EF6\u5DF2\u4E0D\u53EF\u7528\u3002", {
-        field: "attachment_id",
-        suggested_action: "\u8BF7\u91CD\u65B0\u53D1\u9001\u6216\u91CD\u65B0\u5F15\u7528\u9644\u4EF6\u3002"
-      });
-    }
-    return record;
-  }
-  async deleteSession(sessionKey) {
-    await this.initialize();
-    const sessionDigest = digest(sessionKey);
-    const entries = await readdir(this.recordsDirectory, { withFileTypes: true });
-    await Promise.all(entries.filter((entry) => entry.isFile()).map(async (entry) => {
-      const filePath = path.join(this.recordsDirectory, entry.name);
-      if (!RECORD_FILENAME_PATTERN.test(entry.name)) {
-        await removeStaleTemporaryRecord(entry.name, filePath);
-        return;
-      }
-      try {
-        const record = parseRecord(await readFile(filePath, "utf8"));
-        if (secureEqual(record.session_digest, sessionDigest)) await rm(filePath, { force: true });
-      } catch {
-        await rm(filePath, { force: true });
-      }
-    }));
   }
   async initializeOnce() {
     await ensurePrivateDirectory(this.recordsDirectory);
@@ -153,7 +110,8 @@ var OpenClawAttachmentRegistry = class {
           return;
         }
         records.push(record);
-      } catch {
+      } catch (error) {
+        if (typeof error.code === "string") return;
         await rm(filePath, { force: true });
       }
     }));
@@ -337,7 +295,6 @@ function buildOpenClawLocalMcpConfig() {
 
 // src/environment/executables.ts
 import { accessSync, constants } from "fs";
-import os2 from "os";
 import path2 from "path";
 function resolveOpenClawExecutable(explicitPath) {
   const configured = explicitPath?.trim() || process.env.OPENCLAW_CLI_PATH?.trim();
@@ -467,10 +424,15 @@ function registerOpenClawCli(api) {
     const root = program.command("quick-image").description("\u7BA1\u7406 Quick Image \u63D2\u4EF6\u914D\u7F6E");
     root.command("setup").description("\u914D\u7F6E\u5DE5\u5177\u6743\u9650\u548C\u6B63\u5F0F\u73AF\u5883 MCP").action(() => runOpenClawSetup(api));
     const env = root.command("env").description("\u7BA1\u7406 Quick Image \u73AF\u5883");
+    const environmentActionDescriptions = {
+      set: "\u5207\u6362 Quick Image \u73AF\u5883",
+      status: "\u67E5\u770B Quick Image \u73AF\u5883\u914D\u7F6E",
+      reset: "\u6062\u590D Quick Image \u6B63\u5F0F\u9ED8\u8BA4\u73AF\u5883"
+    };
     for (const action of ["set", "status", "reset"]) {
-      const command = env.command(action).description(`\u5207\u6362 Quick Image \u73AF\u5883\uFF08${action}\uFF09`);
+      const command = env.command(action).description(environmentActionDescriptions[action]);
       command.option?.("--server-url <url>", "MCP Server URL").option?.("--frontend-url <url>", "Frontend URL");
-      command.action((options) => runRuntimeEnvironment(api, action, options));
+      command.action((options) => runRuntimeEnvironment(api, action, options ?? {}));
     }
   }, {
     descriptors: [{
@@ -664,7 +626,7 @@ function createListAttachmentsTool(registry, pendingRegistrations, context) {
     async execute(_toolCallId, rawParameters) {
       const parameters = parseListParameters(rawParameters);
       if (!context.sessionKey) throw new Error("\u5F53\u524D OpenClaw \u4F1A\u8BDD\u6CA1\u6709\u53EF\u7528\u7684\u9644\u4EF6\u4E0A\u4E0B\u6587\u3002");
-      await pendingRegistrations.get(context.sessionKey);
+      await pendingRegistrations.get(context.sessionKey)?.catch(() => void 0);
       const result = await registry.listCandidates(context.sessionKey, {
         ...parameters.message_id ? { messageId: parameters.message_id } : {},
         ...parameters.limit ? { limit: parameters.limit } : {},

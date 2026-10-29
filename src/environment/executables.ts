@@ -1,23 +1,5 @@
 import { accessSync, constants } from "node:fs";
-import os from "node:os";
 import path from "node:path";
-
-export function resolveCodexExecutable(explicitPath?: string): string {
-  const configured = explicitPath?.trim() || process.env.CODEX_CLI_PATH?.trim();
-  if (configured) return requireExecutable(configured, "指定的 Codex CLI");
-
-  const pathMatch = findOnPath("codex");
-  if (pathMatch) return pathMatch;
-  if (process.platform === "darwin") {
-    for (const applicationName of ["ChatGPT.app", "Codex.app"]) {
-      for (const base of ["/Applications", path.join(os.homedir(), "Applications")]) {
-        const candidate = path.join(base, applicationName, "Contents", "Resources", "codex");
-        if (isExecutable(candidate)) return candidate;
-      }
-    }
-  }
-  throw new Error("找不到 Codex CLI；请将 codex 加入 PATH，或使用 --codex-bin 指定路径");
-}
 
 export function resolveOpenClawExecutable(explicitPath?: string): string {
   const configured = explicitPath?.trim() || process.env.OPENCLAW_CLI_PATH?.trim();

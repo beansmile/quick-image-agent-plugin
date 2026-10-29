@@ -131,13 +131,27 @@ const runtimeDependencySpec =
 if (portableRuntime?.args?.[2] !== runtimeDependencySpec) {
   errors.push("package.json: OpenClaw runtime dependency must match the MCP runtime npm version");
 }
-const readme = await readFile(path.join(root, "README.md"), "utf8");
-const readmeRuntimeVersionedSpecs = readme.match(new RegExp(runtimePackageSpecSource, "g")) ?? [];
-if (readmeRuntimeVersionedSpecs.length > 0 || !readme.includes(runtimePackageLatestSpec)) {
-  errors.push(`README.md: runtime 命令必须统一使用 ${runtimePackageLatestSpec}`);
+const runtimeCommandDocs = [
+  "README.md",
+  "skills/quick-image/references/grok-bot.md",
+  "skills/quick-image/references/attachments.md",
+  "skills/quick-image/references/auth.md"
+];
+for (const docPath of runtimeCommandDocs) {
+  let content;
+  try {
+    content = await readFile(path.join(root, docPath), "utf8");
+  } catch {
+    errors.push(`${docPath}: 无法读取 runtime 命令文档`);
+    continue;
+  }
+  const versionedSpecs = content.match(new RegExp(runtimePackageSpecSource, "g")) ?? [];
+  if (versionedSpecs.length > 0 || !content.includes(runtimePackageLatestSpec)) {
+    errors.push(`${docPath}: runtime 命令必须统一使用 ${runtimePackageLatestSpec}`);
+  }
 }
 
-for (const required of [
+const requiredReleaseFiles = [
   ".agents/plugins/marketplace.json",
   ".codebuddy-plugin/plugin.json",
   ".workbuddy-plugin/plugin.json",
@@ -145,9 +159,14 @@ for (const required of [
   "openclaw-adapter/dist/index.js",
   "skills/quick-image/SKILL.md",
   "DEVELOPMENT.md",
-  "LICENSE",
-]) {
+  "LICENSE"
+];
+for (const required of requiredReleaseFiles) {
   if (!(await exists(required))) errors.push(`missing required release file: ${required}`);
+  if (!coveredByPackageFiles(required)) errors.push(`package.json: files 白名单未覆盖发布文件 ${required}`);
+}
+if (await exists("dist")) {
+  errors.push("stale dist/ directory must not exist (build output lives in openclaw-adapter/dist)");
 }
 if (packageJson.bin !== undefined) {
   errors.push("package must leave all CLI binaries to quick-image-agent-runtime");
@@ -272,6 +291,13 @@ async function exists(relativePath) {
   } catch {
     return false;
   }
+}
+
+function coveredByPackageFiles(relativePath) {
+  return packageJson.files?.some((entry) =>
+    typeof entry === "string" &&
+    (entry.endsWith("/") ? relativePath.startsWith(entry) : relativePath === entry)
+  ) ?? false;
 }
 
 async function walk(directory, excludedNames, prefix = "") {

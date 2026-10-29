@@ -30,10 +30,15 @@ export function registerOpenClawCli(api: OpenClawCliApi): void {
       .description("配置工具权限和正式环境 MCP")
       .action(() => runOpenClawSetup(api));
     const env = root.command("env").description("管理 Quick Image 环境");
+    const environmentActionDescriptions = {
+      set: "切换 Quick Image 环境",
+      status: "查看 Quick Image 环境配置",
+      reset: "恢复 Quick Image 正式默认环境"
+    } as const;
     for (const action of ["set", "status", "reset"] as const) {
-      const command = env.command(action).description(`切换 Quick Image 环境（${action}）`);
+      const command = env.command(action).description(environmentActionDescriptions[action]);
       command.option?.("--server-url <url>", "MCP Server URL").option?.("--frontend-url <url>", "Frontend URL");
-      command.action((options) => runRuntimeEnvironment(api, action, options));
+      command.action((options) => runRuntimeEnvironment(api, action, options ?? {}));
     }
   }, {
     descriptors: [{

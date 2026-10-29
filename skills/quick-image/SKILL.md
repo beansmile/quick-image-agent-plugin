@@ -52,6 +52,7 @@ description: 使用 Quick Image 对当前会话附件或宿主可访问的本地
 - 本 Skill 面向所有支持 MCP 的 Agent 宿主。OpenClaw 额外提供 `quick_image_list_attachments` 与 `quick_image_send_preview` 两个专属原生工具；各阶段规则对所有宿主一致，不因宿主不同而放宽或跳过。
 - OpenClaw 只执行 owner 发出的 Quick Image 指令。明确为非 owner 或无法确认时，不调用任何 Quick Image 本地或远程工具，只说明该能力仅供 owner 使用；这是 Skill 行为约束，不是原生运行时安全边界。
 - OpenClaw 找不到 `quick_image_list_attachments` 时，先读取 [attachments.md](references/attachments.md) 中的宿主故障处理，不得声称附件尚未生成、要求用户反复重发附件或开放通用 `message` 权限。
+- Grok Bot 运行在云端电脑上：本地工具（`quick-image-local`）以「在电脑上运行的命令」方式提供，用户发来的文件位于云端电脑（通常 /workspace），文件路径即本地媒体路径。素材上传只能经本地工具完成；本地工具不可用时仅支持无素材任务，不得用终端命令或任意 URL 直接上传，详见 [attachments.md](references/attachments.md)。模板身份、首次连接检查、本地服务升级与模板版本检查见 [grok-bot.md](references/grok-bot.md)。
 - 不扫描插件或工作区源码，不检查端口，也不寻找替代上传入口。
 
 ## 失败处理总则
