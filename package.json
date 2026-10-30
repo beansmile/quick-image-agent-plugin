@@ -5,14 +5,26 @@
   "type": "module",
   "license": "LicenseRef-Quick-Image",
   "engines": {
-    "node": ">=20"
+    "node": ">=20.6"
   },
   "packageManager": "pnpm@10.19.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitee.com/beansmile/quick-image-agent-plugin.git"
+  },
+  "homepage": "https://quickimage.ai",
+  "bugs": "https://gitee.com/beansmile/quick-image-agent-plugin/issues",
+  "keywords": [
+    "image-generation",
+    "video-generation",
+    "mcp"
+  ],
   "files": [
     ".codex-plugin/",
     ".codebuddy-plugin/",
     ".workbuddy-plugin/",
     ".claude-plugin/",
+    ".agents/",
     "skills/",
     "openclaw-adapter/",
     "openclaw.plugin.json",
@@ -38,7 +50,7 @@
     "validate": "node scripts/validate-package.mjs"
   },
   "dependencies": {
-    "quick-image-agent-runtime": "0.3.2",
+    "quick-image-agent-runtime": "0.3.3",
     "zod": "3.25.76"
   },
   "openclaw": {

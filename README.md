@@ -1,6 +1,6 @@
 # Quick Image Agent Plugin
 
-Quick Image Agent Plugin 让 Codex、WorkBuddy、OpenClaw 等 AI Agent 宿主可以使用当前会话附件，以及宿主或 AI 根据用户意图提供的本地图片、视频和音频完成 AI 图片和视频生成。所有宿主复用同一套 Skill 与 Quick Image MCP；OpenClaw 在此之上额外提供会话附件列表与结果预览投递两个专属原生工具。
+Quick Image Agent Plugin 让 Codex、WorkBuddy、OpenClaw、Grok Bot 等 AI Agent 宿主可以使用当前会话附件，以及宿主或 AI 根据用户意图提供的本地图片、视频和音频完成 AI 图片和视频生成。所有宿主复用同一套 Skill 与 Quick Image MCP；OpenClaw 在此之上额外提供会话附件列表与结果预览投递两个专属原生工具。
 
 - 支持搭配出图、换姿、高清和视频生成。
 - 创建任务前先展示预估价格，只有在你确认后才处理并上传附件。
@@ -103,6 +103,27 @@ openclaw mcp login quick-image --code '<授权码>'
 
 登录成功后无需重启 Gateway。建议在当前对话中发送 `/reset` 重置会话上下文；若重置后仍无法使用 Quick Image，再执行 `openclaw mcp probe quick-image` 排查连接状态。
 
+### Grok Bot
+
+Grok Bot 是运行在云端电脑上的 AI 队友产品，没有命令行，也不经插件市场分发。Quick Image 以「远程 MCP 连接器 + 云电脑本地处理服务」的方式接入：
+
+1. 打开 Grok Bot 侧边栏的 Connect apps（连接应用），选择添加自定义 MCP server，地址填写：
+
+   ```
+   https://quickimage.ai/mcp
+   ```
+
+2. 出现授权提示时，在浏览器中登录 Quick Image 并批准授权（Authorize）。
+3. 需要上传图片、视频或音频素材时，继续在 MCP 设置中通过「在电脑上运行的命令」方式添加本地处理服务，启动命令：
+
+   ```bash
+   npx --yes --prefer-online --package quick-image-agent-runtime@latest quick-image-local-mcp
+   ```
+
+4. 回到 Grok Bot 开启一个新对话，即可直接描述生成目标使用。
+
+也可以直接安装我们分享的「Quick Image 图像助手」Bot 模板（Shareable Bot）一键获得配置好使用方法的 Bot（模板链接见 Quick Image 官网）。素材上传只能通过第 3 步的本地处理服务完成（含压缩与校验）；未添加时仅支持不需要素材的任务。授权失效或需要切换账号时，在 Connect apps 中对 quick-image 点击 Authorize/Reconnect 重新完成浏览器授权；云端电脑重置后本地处理服务消失，重新执行第 3 步添加即可。
+
 ### 检查环境与恢复正式默认
 
 如果维护者曾切换过环境、需要恢复为默认的正式环境，执行：
@@ -117,7 +138,7 @@ npx --yes --prefer-online \
 
 ## 退出登录与切换账号
 
-需要退出登录或撤销授权时，直接对当前宿主的 Agent 说「退出 Quick Image 登录」。Agent 会先向你确认影响，确认后调用 Quick Image 远程工具撤销当前宿主的全部授权（同一宿主在其他设备或连接器上的授权也会一并失效）。撤销后客户端可能仍显示旧的已登录状态，重新登录或切换账号前请先完全退出并重启客户端：Codex 完全退出并重新打开 Codex；WorkBuddy 完全退出并重新启动 WorkBuddy 客户端；OpenClaw 授权即时生效，无需重启。宿主本地残留的失效凭据无害，重新使用时重新完成登录授权即可。
+需要退出登录或撤销授权时，直接对当前宿主的 Agent 说「退出 Quick Image 登录」。Agent 会先向你确认影响，确认后调用 Quick Image 远程工具撤销当前宿主的全部授权（同一宿主在其他设备或连接器上的授权也会一并失效）。撤销后客户端可能仍显示旧的已登录状态，重新登录或切换账号前请先完全退出并重启客户端：Codex 完全退出并重新打开 Codex；WorkBuddy 完全退出并重新启动 WorkBuddy 客户端；OpenClaw 授权即时生效，无需重启；Grok Bot 在 Connect apps 中对 quick-image 重新完成授权并开启新对话。宿主本地残留的失效凭据无害，重新使用时重新完成登录授权即可。
 
 也可以随时在 Quick Image 前台的已授权应用页（[https://quickimage.ai/agent-plugin?tab=authorizations](https://quickimage.ai/agent-plugin?tab=authorizations)）查看和撤销各宿主的授权；Agent 自动撤销失败时，同样可以在该页面自行撤销，撤销后按上述方式重启客户端再重新登录。
 

@@ -12,7 +12,7 @@ afterEach(async () => {
 });
 
 describe("Codex plugin contract", () => {
-  it("installs the repository-root plugin from the GitHub marketplace source", async () => {
+  it("installs the repository-root plugin from the local marketplace source", async () => {
     const localInstaller = await readFile(path.resolve("scripts/install-local-codex.mjs"), "utf8");
     const marketplace = await readJson(path.resolve(".agents/plugins/marketplace.json"));
 

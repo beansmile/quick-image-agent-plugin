@@ -29,3 +29,4 @@
 - OpenClaw 找不到 `quick_image_list_attachments`，说明原生适配工具未安装、未启用或被当前工具策略过滤。立即停止附件流程，明确说明工具不可用，并提示用户确认 Quick Image Plugin 已安装并启用，必要时重新安装。
 - 限制型 `tools.profile` 需要用户将插件 ID `quick-image` 与本地 MCP 名 `quick-image-local` 显式加入 `tools.alsoAllow`，不需要通用 `message` 工具。
 - 本地附件工具（`inspect_attachment` 等）不可发现或被拒绝时，停止并说明工具不可用；不得声称附件尚未生成或要求用户反复重发。
+- Grok Bot 的素材上传只能经云电脑本地处理服务（`quick-image-local`，以「在电脑上运行的命令」方式提供）完成：本地工具不可发现时，停止素材流程并引导用户在 MCP 设置中添加本地处理服务（启动命令 `npx --yes --prefer-online --package quick-image-agent-runtime@latest quick-image-local-mcp`），云端电脑重置后需重新添加。用户未添加本地处理服务时，只说明需要素材的任务暂不可用，不得改用终端命令、`create_direct_upload` 直传或任意 URL 上传。

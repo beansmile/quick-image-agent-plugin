@@ -51,6 +51,10 @@ codex mcp get quick-image
 
 WorkBuddy 没有可供 Agent 执行的状态检查命令，Agent 无法从宿主读取 MCP 登记或授权状态。按与 Codex 相同的思路分类：先请用户确认「专家·技能·连接器」中 quick-image 套件已安装，且「连接器 → 自定义连接器」的「MCP 服务管理」列表中 quick-image 显示已连接；宿主没有明确 DNS、超时或其他网络故障时归类为待授权，进入第 2 节；宿主明确报告网络故障时按连接故障处理，不执行登录。
 
+### Grok Bot
+
+Grok Bot 没有可供 Agent 执行的状态检查命令。先请用户在 Connect apps（连接应用）中确认 quick-image 已添加、状态不是 Needs auth 或 Disconnected；本地处理服务（`quick-image-local`）不可发现时同样先请用户按添加流程确认。宿主没有明确 DNS、超时或其他网络故障时归类为待授权，进入第 2 节；宿主明确报告网络故障时按连接故障处理，不执行登录。
+
 ### 其他通用 MCP 宿主
 
 未列出的宿主按同一原则处理：插件已安装启用、宿主没有明确网络故障时归类为待授权；宿主明确报告 DNS、超时、连接拒绝等网络故障时归类为连接故障。不得因宿主未列出而跳过检查或直接结束流程。
@@ -65,7 +69,7 @@ WorkBuddy 没有可供 Agent 执行的状态检查命令，Agent 无法从宿主
 
 用户明确确认前，不得执行任何登录命令。用户拒绝时停止当前 Quick Image 请求；用户确认后，按当前宿主的登录流程继续。
 
-## 3. Codex、WorkBuddy 登录流程
+## 3. Codex、WorkBuddy、Grok Bot 登录流程
 
 ### Codex
 
@@ -89,6 +93,17 @@ WorkBuddy 的授权在客户端界面完成，没有可供 Agent 执行的登录
 4. 完全退出并重新启动 WorkBuddy 客户端，使新的授权和连接生效。
 
 凭据安全约束与 Codex 流程一致：不要索要或展示 Token、授权码或终端中的凭据。
+
+### Grok Bot
+
+Grok Bot 的授权在应用界面完成，没有可供 Agent 执行的登录命令。用户确认后，引导用户完成以下操作，不要代为执行：
+
+1. 在 Grok Bot 侧边栏打开 Connect apps（连接应用）。
+2. 找到 quick-image；状态为 Needs auth 或 Disconnected 时，点击 Authorize/Authenticate（或 Reconnect/Reopen）。
+3. 在打开的浏览器页面中登录 Quick Image 并批准授权，回到 Grok Bot 确认状态正常。
+4. 开启一个新对话再继续 Quick Image 任务，使新的连接生效。
+
+授权后连接仍异常时，先点 Reconnect/Reopen 重试；仍失败则移除 quick-image 后重新添加（地址 `https://quickimage.ai/mcp`）。云端电脑重置后本地处理服务会消失，需要重新以「在电脑上运行的命令」方式添加，启动命令为 `npx --yes --prefer-online --package quick-image-agent-runtime@latest quick-image-local-mcp`。凭据安全约束与 Codex 流程一致：不要索要或展示 Token、授权码或终端中的凭据。
 
 其他通用 MCP 宿主同样使用宿主自身的 MCP 授权机制，不要索要或展示 Token、授权码或终端中的凭据。
 

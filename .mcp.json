@@ -18,7 +18,7 @@
       "args": [
         "--yes",
         "--package",
-        "quick-image-agent-runtime@0.3.2",
+        "quick-image-agent-runtime@0.3.3",
         "quick-image-local-mcp"
       ]
     }

@@ -22,12 +22,6 @@ export interface OpenClawNativeTool {
   label: string;
   description: string;
   parameters: OpenClawToolParameters;
-  annotations?: {
-    readOnlyHint: boolean;
-    destructiveHint: boolean;
-    idempotentHint: boolean;
-    openWorldHint: boolean;
-  };
   execute(toolCallId: string, parameters: unknown): Promise<{
     content: Array<{ type: "text"; text: string }>;
     isError?: boolean;
